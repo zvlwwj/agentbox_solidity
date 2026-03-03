@@ -18,6 +18,8 @@ contract AgentboxCore is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     event LandBought(uint256 indexed landId, address indexed owner);
     event LandSold(uint256 indexed landId, address indexed owner);
     event LandContractSet(uint256 indexed landId, address indexed contractAddress);
+    event MessageSent(address indexed fromWallet, address indexed toWallet, string message);
+    event GlobalMessageSent(address indexed fromWallet, string message);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -682,5 +684,13 @@ contract AgentboxCore is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         state.isLandContract[contractAddress] = true;
         
         emit LandContractSet(landId, contractAddress);
+    }
+
+    function sendMessage(address roleWallet, address toWallet, string calldata message) external onlyRoleController(roleWallet) {
+        emit MessageSent(roleWallet, toWallet, message);
+    }
+
+    function sendGlobalMessage(address roleWallet, string calldata message) external onlyRoleController(roleWallet) {
+        emit GlobalMessageSent(roleWallet, message);
     }
 }
