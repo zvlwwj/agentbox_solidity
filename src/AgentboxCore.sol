@@ -59,7 +59,9 @@ contract AgentboxCore is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         _;
     }
 
-    function registerCharacter(uint256 roleId) external {
+    function registerCharacter(uint256 roleId) external payable {
+        require(msg.value == 0.01 ether, "Requires 0.01 ETH to register");
+
         AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
         AgentboxRole roleToken = AgentboxRole(state.roleContract);
         require(roleToken.ownerOf(roleId) == msg.sender, "Not owner");
@@ -77,9 +79,27 @@ contract AgentboxCore is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         role.attributes.speed = 3;
         role.attributes.range = 1;
 
-        role.position.x = 0;
-        role.position.y = 0;
+        AgentboxConfig config = AgentboxConfig(state.configContract);
+        uint256 mapWidth = config.mapWidth();
+        uint256 mapHeight = config.mapHeight();
+
+        uint256 pseudoRandom = uint256(keccak256(abi.encodePacked(block.timestamp, block.prevrandao, msg.sender, roleId)));
+        uint256 startX = pseudoRandom % mapWidth;
+        uint256 startY = (pseudoRandom / mapWidth) % mapHeight;
+
+        role.position.x = startX;
+        role.position.y = startY;
         role.state = AgentboxStorage.RoleState.Idle;
+
+        if (state.totalRegistered < 2000) {
+            uint256 landId = startY * mapWidth + startX;
+            if (state.landOwners[landId] == address(0)) {
+                state.landOwners[landId] = msg.sender;
+                emit LandBought(landId, msg.sender);
+            }
+        }
+
+        state.totalRegistered++;
 
         emit CharacterRegistered(roleId, roleWallet);
     }
@@ -692,5 +712,9 @@ contract AgentboxCore is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     function sendGlobalMessage(address roleWallet, string calldata message) external onlyRoleController(roleWallet) {
         emit GlobalMessageSent(roleWallet, message);
+    }
+
+    function withdrawEth() external onlyOwner {
+        payable(owner()).transfer(address(this).balance);
     }
 }

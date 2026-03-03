@@ -70,13 +70,16 @@ contract AgentboxEconomy is ERC20, Ownable, VRFConsumerBaseV2 {
         if (pendingMintRequests[requestId]) {
             delete pendingMintRequests[requestId];
 
+            if (mintsCount >= 160000) {
+                return; // Max supply reached (160,000 mints * 1000 tokens = 160,000,000 tokens)
+            }
+
             uint256 mapWidth = config.mapWidth();
             uint256 mapHeight = config.mapHeight();
 
             uint256 landId = randomWords[0] % (mapWidth * mapHeight);
 
-            uint256 halvingEpochs = mintsCount * config.mintIntervalBlocks() / config.halvingIntervalBlocks();
-            uint256 currentMintAmount = config.mintAmount() >> halvingEpochs;
+            uint256 currentMintAmount = 1000 * 10**decimals();
 
             groundTokens[landId] += currentMintAmount;
             mintsCount++;
