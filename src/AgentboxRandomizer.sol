@@ -8,6 +8,7 @@ import {VRFCoordinatorV2Interface} from "@chainlink/contracts/src/v0.8/vrf/inter
 interface IAgentboxCore {
     function processRespawn(uint256 roleId, uint256 randomWord) external;
     function processNPCRefresh(uint256 npcId, uint256 randomWord) external;
+    function processSpawn(uint256 roleId, uint256 randomWord) external;
 }
 
 contract AgentboxRandomizer is Ownable, VRFConsumerBaseV2 {
@@ -21,7 +22,8 @@ contract AgentboxRandomizer is Ownable, VRFConsumerBaseV2 {
 
     enum RequestType {
         Respawn,
-        NPCRefresh
+        NPCRefresh,
+        Spawn
     }
 
     struct RequestInfo {
@@ -55,6 +57,12 @@ contract AgentboxRandomizer is Ownable, VRFConsumerBaseV2 {
         requests[requestId] = RequestInfo({reqType: RequestType.Respawn, targetId: roleId});
     }
 
+    function requestSpawn(uint256 roleId) external onlyCore returns (uint256 requestId) {
+        requestId =
+            COORDINATOR.requestRandomWords(s_keyHash, s_subscriptionId, requestConfirmations, callbackGasLimit, 1);
+        requests[requestId] = RequestInfo({reqType: RequestType.Spawn, targetId: roleId});
+    }
+
     function requestNPCRefresh(uint256 npcId) external onlyCore returns (uint256 requestId) {
         requestId =
             COORDINATOR.requestRandomWords(s_keyHash, s_subscriptionId, requestConfirmations, callbackGasLimit, 1);
@@ -67,6 +75,8 @@ contract AgentboxRandomizer is Ownable, VRFConsumerBaseV2 {
             IAgentboxCore(gameCore).processRespawn(req.targetId, randomWords[0]);
         } else if (req.reqType == RequestType.NPCRefresh) {
             IAgentboxCore(gameCore).processNPCRefresh(req.targetId, randomWords[0]);
+        } else if (req.reqType == RequestType.Spawn) {
+            IAgentboxCore(gameCore).processSpawn(req.targetId, randomWords[0]);
         }
     }
 }

@@ -8,7 +8,8 @@ library AgentboxStorage {
         Teaching,
         Crafting,
         Gathering,
-        Moving
+        Moving,
+        PendingSpawn
     }
 
     struct Position {
