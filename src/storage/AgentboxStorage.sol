@@ -7,7 +7,8 @@ library AgentboxStorage {
         Learning,
         Teaching,
         Crafting,
-        Gathering
+        Gathering,
+        Moving
     }
 
     struct Position {
@@ -36,6 +37,28 @@ library AgentboxStorage {
         uint256 requiredBlocks;
         uint256 targetId;
         uint256 skillId;
+        bool isNPC;
+        address teacherWallet;
+    }
+
+    struct TeachingState {
+        uint256 startBlock;
+        uint256 requiredBlocks;
+        address studentWallet;
+        uint256 skillId;
+    }
+
+    struct MovingState {
+        uint256 startBlock;
+        uint256 requiredBlocks;
+        Position targetPosition;
+    }
+
+    struct GatheringState {
+        uint256 startBlock;
+        uint256 requiredBlocks;
+        uint256 targetLandId;
+        uint256 amount;
     }
 
     struct RoleData {
@@ -44,6 +67,9 @@ library AgentboxStorage {
         RoleState state;
         CraftingState crafting;
         LearningState learning;
+        MovingState moving;
+        GatheringState gathering;
+        TeachingState teaching;
         mapping(uint256 => bool) skills;
     }
 
@@ -59,7 +85,6 @@ library AgentboxStorage {
         bool isTeaching;
         uint256 studentId;
         uint256 startBlock;
-        uint256 requiredBlocks;
     }
 
     struct Recipe {
@@ -84,7 +109,8 @@ library AgentboxStorage {
         mapping(uint256 => ResourcePoint) resourcePoints;
         mapping(uint256 => NPC) npcs;
         mapping(uint256 => Recipe) recipes;
-        uint256[39] __gap;
+        mapping(uint256 => uint256) skillRequiredBlocks;
+        uint256[38] __gap;
     }
 
     bytes32 constant GAME_STORAGE_POSITION = keccak256("agentbox.core.storage");

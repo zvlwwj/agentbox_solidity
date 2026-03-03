@@ -129,6 +129,47 @@ contract AgentboxCore is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         }
     }
 
+    function startMove(address roleWallet, uint256 targetX, uint256 targetY) external onlyRoleController(roleWallet) {
+        AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
+        AgentboxStorage.RoleData storage role = state.roles[roleWallet];
+
+        require(role.state == AgentboxStorage.RoleState.Idle, "Role not idle");
+
+        AgentboxConfig config = AgentboxConfig(state.configContract);
+        require(targetX < config.mapWidth() && targetY < config.mapHeight(), "Target out of bounds");
+
+        uint256 dx = targetX > role.position.x ? targetX - role.position.x : role.position.x - targetX;
+        uint256 dy = targetY > role.position.y ? targetY - role.position.y : role.position.y - targetY;
+        uint256 distance = dx + dy;
+        
+        require(distance > 0, "Already at target");
+        
+        uint256 requiredBlocks = (distance + role.attributes.speed - 1) / role.attributes.speed;
+
+        role.state = AgentboxStorage.RoleState.Moving;
+        role.moving = AgentboxStorage.MovingState({
+            startBlock: block.number,
+            requiredBlocks: requiredBlocks,
+            targetPosition: AgentboxStorage.Position(targetX, targetY)
+        });
+    }
+
+    function finishMove(address roleWallet) external onlyRoleController(roleWallet) {
+        AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
+        AgentboxStorage.RoleData storage role = state.roles[roleWallet];
+
+        require(role.state == AgentboxStorage.RoleState.Moving, "Role not moving");
+        require(block.number >= role.moving.startBlock + role.moving.requiredBlocks, "Move not finished yet");
+
+        role.position = role.moving.targetPosition;
+        role.state = AgentboxStorage.RoleState.Idle;
+
+        if (state.economyContract != address(0)) {
+            AgentboxEconomy economy = AgentboxEconomy(state.economyContract);
+            economy.pickupTokens(roleWallet, role.position.x, role.position.y);
+        }
+    }
+
     function attack(address roleWallet, address targetWallet) external onlyRoleController(roleWallet) {
         AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
         AgentboxStorage.RoleData storage attacker = state.roles[roleWallet];
@@ -159,6 +200,29 @@ contract AgentboxCore is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
         if (damage >= target.attributes.hp) {
             target.attributes.hp = 0;
+
+            // Cleanup linked states on death to prevent stuck states
+            if (target.state == AgentboxStorage.RoleState.Learning) {
+                if (target.learning.isNPC) {
+                    AgentboxStorage.NPC storage npc = state.npcs[target.learning.targetId];
+                    if (npc.studentId == uint160(targetWallet)) {
+                        npc.isTeaching = false;
+                    }
+                } else {
+                    address teacherWallet = target.learning.teacherWallet;
+                    AgentboxStorage.RoleData storage teacher = state.roles[teacherWallet];
+                    if (teacher.state == AgentboxStorage.RoleState.Teaching && teacher.teaching.studentWallet == targetWallet) {
+                        teacher.state = AgentboxStorage.RoleState.Idle;
+                    }
+                }
+            } else if (target.state == AgentboxStorage.RoleState.Teaching) {
+                address studentWallet = target.teaching.studentWallet;
+                AgentboxStorage.RoleData storage student = state.roles[studentWallet];
+                if (student.state == AgentboxStorage.RoleState.Learning && student.learning.teacherWallet == targetWallet) {
+                    student.state = AgentboxStorage.RoleState.Idle;
+                }
+            }
+
             if (state.economyContract != address(0)) {
                 AgentboxEconomy(state.economyContract).transferUnreliableOnDeath(targetWallet, roleWallet);
             }
@@ -201,6 +265,19 @@ contract AgentboxCore is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             AgentboxStorage.ResourcePoint({resourceType: resourceType, stock: initialStock, isResourcePoint: true});
     }
 
+    function setSkillBlocks(uint256 skillId, uint256 requiredBlocks) external onlyOwner {
+        AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
+        state.skillRequiredBlocks[skillId] = requiredBlocks;
+    }
+
+    function setNPC(uint256 npcId, uint256 x, uint256 y, uint256 npcType) external onlyOwner {
+        AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
+        AgentboxStorage.NPC storage npc = state.npcs[npcId];
+        npc.position.x = x;
+        npc.position.y = y;
+        npc.npcType = npcType;
+    }
+
     function gather(address roleWallet) external onlyRoleController(roleWallet) {
         AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
         AgentboxStorage.RoleData storage role = state.roles[roleWallet];
@@ -231,6 +308,53 @@ contract AgentboxCore is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         }
     }
 
+    function startGather(address roleWallet, uint256 amount) external onlyRoleController(roleWallet) {
+        AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
+        AgentboxStorage.RoleData storage role = state.roles[roleWallet];
+        require(role.state == AgentboxStorage.RoleState.Idle, "Role not idle");
+
+        AgentboxConfig config = AgentboxConfig(state.configContract);
+        uint256 landId = role.position.y * config.mapWidth() + role.position.x;
+        AgentboxStorage.ResourcePoint storage rp = state.resourcePoints[landId];
+
+        require(rp.isResourcePoint, "Not a resource point");
+        require(rp.stock >= amount, "Not enough resource stock");
+        require(role.skills[rp.resourceType], "Missing required skill");
+
+        uint256 blocksPerResource = 2; // Fixed blocks per resource
+        uint256 requiredBlocks = amount * blocksPerResource;
+
+        rp.stock -= amount;
+        if (rp.stock == 0) {
+            rp.isResourcePoint = false;
+        }
+
+        role.state = AgentboxStorage.RoleState.Gathering;
+        role.gathering = AgentboxStorage.GatheringState({
+            startBlock: block.number,
+            requiredBlocks: requiredBlocks,
+            targetLandId: landId,
+            amount: amount
+        });
+    }
+
+    function finishGather(address roleWallet) external onlyRoleController(roleWallet) {
+        AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
+        AgentboxStorage.RoleData storage role = state.roles[roleWallet];
+
+        require(role.state == AgentboxStorage.RoleState.Gathering, "Role not gathering");
+        require(block.number >= role.gathering.startBlock + role.gathering.requiredBlocks, "Gathering not finished yet");
+
+        uint256 targetLandId = role.gathering.targetLandId;
+        AgentboxStorage.ResourcePoint storage rp = state.resourcePoints[targetLandId];
+
+        role.state = AgentboxStorage.RoleState.Idle;
+
+        if (state.resourceContract != address(0)) {
+            AgentboxResource(state.resourceContract).mint(roleWallet, rp.resourceType, role.gathering.amount, "");
+        }
+    }
+
     function startLearning(address roleWallet, uint256 npcId) external onlyRoleController(roleWallet) {
         AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
         AgentboxStorage.RoleData storage role = state.roles[roleWallet];
@@ -239,13 +363,18 @@ contract AgentboxCore is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         AgentboxStorage.NPC storage npc = state.npcs[npcId];
         require(!npc.isTeaching, "NPC is busy");
         require(npc.position.x == role.position.x && npc.position.y == role.position.y, "Not at NPC");
+        
+        uint256 reqBlocks = state.skillRequiredBlocks[npc.npcType];
+        require(reqBlocks > 0, "Skill not configured");
 
         role.state = AgentboxStorage.RoleState.Learning;
         role.learning = AgentboxStorage.LearningState({
             startBlock: block.number,
-            requiredBlocks: 100,
+            requiredBlocks: reqBlocks,
             targetId: npcId,
-            skillId: npc.npcType
+            skillId: npc.npcType,
+            isNPC: true,
+            teacherWallet: address(0)
         });
 
         npc.isTeaching = true;
@@ -253,7 +382,43 @@ contract AgentboxCore is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         // Let's store studentId as uint256 representation of wallet, or just cast it
         npc.studentId = uint160(roleWallet);
         npc.startBlock = block.number;
-        npc.requiredBlocks = 100;
+    }
+
+    function startLearningFromPlayer(address roleWallet, address teacherWallet, uint256 skillId) external onlyRoleController(roleWallet) {
+        AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
+        AgentboxStorage.RoleData storage role = state.roles[roleWallet];
+        AgentboxStorage.RoleData storage teacher = state.roles[teacherWallet];
+
+        require(role.state == AgentboxStorage.RoleState.Idle, "Student not idle");
+        require(teacher.state == AgentboxStorage.RoleState.Idle, "Teacher not idle");
+        require(role.position.x == teacher.position.x && role.position.y == teacher.position.y, "Not at teacher");
+        require(teacher.skills[skillId], "Teacher does not have skill");
+        require(!role.skills[skillId], "Student already has skill");
+
+        uint256 baseReqBlocks = state.skillRequiredBlocks[skillId];
+        require(baseReqBlocks > 0, "Skill not configured");
+
+        uint256 reqBlocks = baseReqBlocks * 2;
+
+        // Set student state
+        role.state = AgentboxStorage.RoleState.Learning;
+        role.learning = AgentboxStorage.LearningState({
+            startBlock: block.number,
+            requiredBlocks: reqBlocks,
+            targetId: 0,
+            skillId: skillId,
+            isNPC: false,
+            teacherWallet: teacherWallet
+        });
+
+        // Set teacher state
+        teacher.state = AgentboxStorage.RoleState.Teaching;
+        teacher.teaching = AgentboxStorage.TeachingState({
+            startBlock: block.number,
+            requiredBlocks: reqBlocks,
+            studentWallet: roleWallet,
+            skillId: skillId
+        });
     }
 
     function finishLearning(address roleWallet) external onlyRoleController(roleWallet) {
@@ -265,14 +430,21 @@ contract AgentboxCore is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         role.state = AgentboxStorage.RoleState.Idle;
         role.skills[role.learning.skillId] = true;
 
-        AgentboxStorage.NPC storage npc = state.npcs[role.learning.targetId];
-        npc.isTeaching = false;
+        if (role.learning.isNPC) {
+            AgentboxStorage.NPC storage npc = state.npcs[role.learning.targetId];
+            npc.isTeaching = false;
 
-        if (state.randomizerContract != address(0)) {
-            (bool success,) = state.randomizerContract.call(
-                abi.encodeWithSignature("requestNPCRefresh(uint256)", role.learning.targetId)
-            );
-            require(success, "Randomizer request failed");
+            if (state.randomizerContract != address(0)) {
+                (bool success,) = state.randomizerContract.call(
+                    abi.encodeWithSignature("requestNPCRefresh(uint256)", role.learning.targetId)
+                );
+                require(success, "Randomizer request failed");
+            }
+        } else {
+            AgentboxStorage.RoleData storage teacher = state.roles[role.learning.teacherWallet];
+            if (teacher.state == AgentboxStorage.RoleState.Teaching && teacher.teaching.studentWallet == roleWallet) {
+                teacher.state = AgentboxStorage.RoleState.Idle;
+            }
         }
     }
 
