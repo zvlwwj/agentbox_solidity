@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import "../Errors.sol";
+
 import "./AgentboxBase.sol";
 import "../AgentboxConfig.sol";
 import "../AgentboxResource.sol";
@@ -9,15 +11,15 @@ contract GatherCraftFacet is AgentboxBase {
     function gather(address roleWallet) external onlyRoleController(roleWallet) {
         AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
         AgentboxStorage.RoleData storage role = state.roles[roleWallet];
-        require(role.state == AgentboxStorage.RoleState.Idle, "Role not idle");
+        if (!(role.state == AgentboxStorage.RoleState.Idle)) revert RoleNotIdle();
 
         AgentboxConfig config = AgentboxConfig(state.configContract);
         uint256 landId = role.position.y * config.mapWidth() + role.position.x;
         AgentboxStorage.ResourcePoint storage rp = state.resourcePoints[landId];
 
-        require(rp.isResourcePoint, "Not a resource point");
-        require(rp.stock > 0, "Resource depleted");
-        require(role.skills[rp.resourceType], "Missing required skill");
+        if (!(rp.isResourcePoint)) revert NotAResourcePoint();
+        if (!(rp.stock > 0)) revert ResourceDepleted();
+        if (!(role.skills[rp.resourceType])) revert MissingRequiredSkill();
 
         uint256 gatherAmount = 1;
 
@@ -25,7 +27,7 @@ contract GatherCraftFacet is AgentboxBase {
             gatherAmount = rp.stock;
         }
 
-        rp.stock -= gatherAmount;
+        rp.stock -= uint64(gatherAmount);
         
         if (state.resourceContract != address(0)) {
             AgentboxResource(state.resourceContract).mint(roleWallet, rp.resourceType, gatherAmount, "");
@@ -39,39 +41,41 @@ contract GatherCraftFacet is AgentboxBase {
     function startGather(address roleWallet, uint256 amount) external onlyRoleController(roleWallet) {
         AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
         AgentboxStorage.RoleData storage role = state.roles[roleWallet];
-        require(role.state == AgentboxStorage.RoleState.Idle, "Role not idle");
+        if (!(role.state == AgentboxStorage.RoleState.Idle)) revert RoleNotIdle();
 
         AgentboxConfig config = AgentboxConfig(state.configContract);
         uint256 landId = role.position.y * config.mapWidth() + role.position.x;
         AgentboxStorage.ResourcePoint storage rp = state.resourcePoints[landId];
 
-        require(rp.isResourcePoint, "Not a resource point");
-        require(rp.stock >= amount, "Not enough resource stock");
-        require(role.skills[rp.resourceType], "Missing required skill");
+        if (!(rp.isResourcePoint)) revert NotAResourcePoint();
+        if (!(rp.stock >= amount)) revert NotEnoughResourceStock();
+        if (!(role.skills[rp.resourceType])) revert MissingRequiredSkill();
 
         uint256 blocksPerResource = 2; // Fixed blocks per resource
         uint256 requiredBlocks = amount * blocksPerResource;
 
-        rp.stock -= amount;
+        rp.stock -= uint64(amount);
         if (rp.stock == 0) {
             rp.isResourcePoint = false;
         }
 
         role.state = AgentboxStorage.RoleState.Gathering;
         role.gathering = AgentboxStorage.GatheringState({
-            startBlock: block.number,
-            requiredBlocks: requiredBlocks,
-            targetLandId: landId,
-            amount: amount
+            startBlock: uint64(block.number),
+            requiredBlocks: uint64(requiredBlocks),
+            targetLandId: uint64(landId),
+            amount: uint64(amount)
         });
+
+        emit ActionStarted(roleWallet, "Gather");
     }
 
     function finishGather(address roleWallet) external onlyRoleController(roleWallet) {
         AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
         AgentboxStorage.RoleData storage role = state.roles[roleWallet];
 
-        require(role.state == AgentboxStorage.RoleState.Gathering, "Role not gathering");
-        require(block.number >= role.gathering.startBlock + role.gathering.requiredBlocks, "Gathering not finished yet");
+        if (!(role.state == AgentboxStorage.RoleState.Gathering)) revert RoleNotGathering();
+        if (!(block.number >= role.gathering.startBlock + role.gathering.requiredBlocks)) revert GatheringNotFinishedYet();
 
         uint256 targetLandId = role.gathering.targetLandId;
         AgentboxStorage.ResourcePoint storage rp = state.resourcePoints[targetLandId];
@@ -81,16 +85,18 @@ contract GatherCraftFacet is AgentboxBase {
         if (state.resourceContract != address(0)) {
             AgentboxResource(state.resourceContract).mint(roleWallet, rp.resourceType, role.gathering.amount, "");
         }
+
+        emit ActionFinished(roleWallet, "Gather");
     }
 
     function startCrafting(address roleWallet, uint256 recipeId) external onlyRoleController(roleWallet) {
         AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
         AgentboxStorage.RoleData storage role = state.roles[roleWallet];
-        require(role.state == AgentboxStorage.RoleState.Idle, "Role not idle");
+        if (!(role.state == AgentboxStorage.RoleState.Idle)) revert RoleNotIdle();
 
         AgentboxStorage.Recipe storage recipe = state.recipes[recipeId];
-        require(recipe.outputEquipmentId != 0, "Invalid recipe");
-        require(role.skills[recipe.requiredSkill], "Missing required skill");
+        if (!(recipe.outputEquipmentId != 0)) revert InvalidRecipe();
+        if (!(role.skills[recipe.requiredSkill])) revert MissingRequiredSkill();
         
         // Verify balances and deduct resources
         for (uint256 i = 0; i < recipe.requiredResources.length; i++) {
@@ -103,32 +109,36 @@ contract GatherCraftFacet is AgentboxBase {
         // Set state
         role.state = AgentboxStorage.RoleState.Crafting;
         role.crafting = AgentboxStorage.CraftingState({
-            startBlock: block.number,
+            startBlock: uint64(block.number),
             requiredBlocks: recipe.requiredBlocks,
-            recipeId: recipeId
+            recipeId: uint64(recipeId)
         });
+
+        emit ActionStarted(roleWallet, "Craft");
     }
 
     function finishCrafting(address roleWallet) external onlyRoleController(roleWallet) {
         AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
         AgentboxStorage.RoleData storage role = state.roles[roleWallet];
-        require(role.state == AgentboxStorage.RoleState.Crafting, "Not crafting");
-        require(block.number >= role.crafting.startBlock + role.crafting.requiredBlocks, "Crafting not finished");
+        if (!(role.state == AgentboxStorage.RoleState.Crafting)) revert NotCrafting();
+        if (!(block.number >= role.crafting.startBlock + role.crafting.requiredBlocks)) revert CraftingNotFinished();
 
         AgentboxStorage.Recipe storage recipe = state.recipes[role.crafting.recipeId];
 
         // Output equipment
         AgentboxResource(state.resourceContract).mint(roleWallet, recipe.outputEquipmentId, 1, "");
         role.state = AgentboxStorage.RoleState.Idle;
+
+        emit ActionFinished(roleWallet, "Craft");
     }
 
     function equip(address roleWallet, uint256 equipmentId) external onlyRoleController(roleWallet) {
         AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
         AgentboxStorage.RoleData storage role = state.roles[roleWallet];
-        require(role.state == AgentboxStorage.RoleState.Idle, "Role not idle");
+        if (!(role.state == AgentboxStorage.RoleState.Idle)) revert RoleNotIdle();
 
         AgentboxStorage.EquipmentConfig storage config = state.equipments[equipmentId];
-        require(config.slot > 0, "Not an equipment");
+        if (!(config.slot > 0)) revert NotAnEquipment();
 
         // Verify balance
         require(AgentboxResource(state.resourceContract).balanceOf(roleWallet, equipmentId) > 0, "Do not own equipment");
@@ -147,37 +157,41 @@ contract GatherCraftFacet is AgentboxBase {
         
         role.equippedItems[slot] = equipmentId;
         _applyEquipmentStats(role, config);
+        
+        emit Equipped(roleWallet, slot, equipmentId);
     }
 
     function unequip(address roleWallet, uint256 slot) external onlyRoleController(roleWallet) {
         AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
         AgentboxStorage.RoleData storage role = state.roles[roleWallet];
-        require(role.state == AgentboxStorage.RoleState.Idle, "Role not idle");
+        if (!(role.state == AgentboxStorage.RoleState.Idle)) revert RoleNotIdle();
 
         uint256 currentEq = role.equippedItems[slot];
-        require(currentEq != 0, "Nothing equipped in slot");
+        if (!(currentEq != 0)) revert NothingEquippedInSlot();
 
         role.equippedItems[slot] = 0;
         _removeEquipmentStats(role, state.equipments[currentEq]);
 
         // return item to inventory
         AgentboxResource(state.resourceContract).mint(roleWallet, currentEq, 1, "");
+        
+        emit Equipped(roleWallet, slot, 0); // 0 means unequipped
     }
 
     function _applyEquipmentStats(AgentboxStorage.RoleData storage role, AgentboxStorage.EquipmentConfig memory config) internal {
-        role.attributes.speed = _addIntToUint(role.attributes.speed, config.speedBonus);
-        role.attributes.attack = _addIntToUint(role.attributes.attack, config.attackBonus);
-        role.attributes.defense = _addIntToUint(role.attributes.defense, config.defenseBonus);
-        role.attributes.maxHp = _addIntToUint(role.attributes.maxHp, config.maxHpBonus);
-        role.attributes.range = _addIntToUint(role.attributes.range, config.rangeBonus);
+        role.attributes.speed = uint32(_addIntToUint(role.attributes.speed, config.speedBonus));
+        role.attributes.attack = uint32(_addIntToUint(role.attributes.attack, config.attackBonus));
+        role.attributes.defense = uint32(_addIntToUint(role.attributes.defense, config.defenseBonus));
+        role.attributes.maxHp = uint32(_addIntToUint(role.attributes.maxHp, config.maxHpBonus));
+        role.attributes.range = uint32(_addIntToUint(role.attributes.range, config.rangeBonus));
     }
 
     function _removeEquipmentStats(AgentboxStorage.RoleData storage role, AgentboxStorage.EquipmentConfig memory config) internal {
-        role.attributes.speed = _addIntToUint(role.attributes.speed, -config.speedBonus);
-        role.attributes.attack = _addIntToUint(role.attributes.attack, -config.attackBonus);
-        role.attributes.defense = _addIntToUint(role.attributes.defense, -config.defenseBonus);
-        role.attributes.maxHp = _addIntToUint(role.attributes.maxHp, -config.maxHpBonus);
-        role.attributes.range = _addIntToUint(role.attributes.range, -config.rangeBonus);
+        role.attributes.speed = uint32(_addIntToUint(role.attributes.speed, -config.speedBonus));
+        role.attributes.attack = uint32(_addIntToUint(role.attributes.attack, -config.attackBonus));
+        role.attributes.defense = uint32(_addIntToUint(role.attributes.defense, -config.defenseBonus));
+        role.attributes.maxHp = uint32(_addIntToUint(role.attributes.maxHp, -config.maxHpBonus));
+        role.attributes.range = uint32(_addIntToUint(role.attributes.range, -config.rangeBonus));
 
         if (role.attributes.hp > role.attributes.maxHp) {
             role.attributes.hp = role.attributes.maxHp;

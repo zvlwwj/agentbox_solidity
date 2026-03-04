@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import "./Errors.sol";
+
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
@@ -23,16 +25,16 @@ contract AgentboxRoleWallet is Initializable, ERC1155Holder, ERC721Holder {
         IAgentboxRole role = IAgentboxRole(roleContract);
         address controller = role.controllerOf(roleId);
         if (controller != address(0)) {
-            require(msg.sender == controller, "Not controller");
+            if (!(msg.sender == controller)) revert NotController();
         } else {
-            require(msg.sender == role.ownerOf(roleId), "Not owner");
+            if (!(msg.sender == role.ownerOf(roleId))) revert NotOwner();
         }
         _;
     }
 
     function execute(address to, uint256 value, bytes calldata data) external onlyController returns (bytes memory) {
         (bool success, bytes memory result) = to.call{value: value}(data);
-        require(success, "Call failed");
+        if (!(success)) revert CallFailed();
         return result;
     }
     

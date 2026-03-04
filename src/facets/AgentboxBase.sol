@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import "../Errors.sol";
+
 import "../storage/AgentboxStorage.sol";
 import "../AgentboxRole.sol";
 import "../AgentboxRoleWallet.sol";
@@ -13,27 +15,32 @@ abstract contract AgentboxBase {
     event MessageSent(address indexed fromWallet, address indexed toWallet, string message);
     event GlobalMessageSent(address indexed fromWallet, string message);
 
+    event ActionStarted(address indexed roleWallet, string actionType);
+    event ActionFinished(address indexed roleWallet, string actionType);
+    event Attacked(address indexed attacker, address indexed target, uint256 damage);
+    event Equipped(address indexed roleWallet, uint256 slot, uint256 equipmentId);
+
     modifier onlyRoleController(address roleWallet) {
         AgentboxRole roleToken = AgentboxRole(AgentboxStorage.getStorage().roleContract);
         uint256 roleId = AgentboxRoleWallet(payable(roleWallet)).roleId();
-        require(roleToken.wallets(roleId) == roleWallet, "Invalid role wallet");
+        if (!(roleToken.wallets(roleId) == roleWallet)) revert InvalidRoleWallet();
 
         address controller = roleToken.controllerOf(roleId);
         if (controller != address(0)) {
-            require(controller == msg.sender, "Not controller");
+            if (!(controller == msg.sender)) revert NotController();
         } else {
-            require(roleToken.ownerOf(roleId) == msg.sender, "Not owner");
+            if (!(roleToken.ownerOf(roleId) == msg.sender)) revert NotOwner();
         }
         _;
     }
 
     modifier onlyOwner() {
-        require(msg.sender == AgentboxStorage.getStorage().owner, "Not owner");
+        if (!(msg.sender == AgentboxStorage.getStorage().owner)) revert NotOwner();
         _;
     }
 
     modifier onlyRandomizer() {
-        require(msg.sender == AgentboxStorage.getStorage().randomizerContract, "Only randomizer");
+        if (!(msg.sender == AgentboxStorage.getStorage().randomizerContract)) revert OnlyRandomizer();
         _;
     }
 }

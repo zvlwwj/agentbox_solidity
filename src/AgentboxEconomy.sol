@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import "./Errors.sol";
+
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import {VRFConsumerBaseV2Plus} from "@chainlink/contracts/src/v0.8/vrf/dev/VRFConsumerBaseV2Plus.sol";
@@ -52,12 +54,12 @@ contract AgentboxEconomy is ERC20, VRFConsumerBaseV2Plus {
     }
 
     modifier onlyCore() {
-        require(msg.sender == gameCore, "Only game core");
+        if (!(msg.sender == gameCore)) revert OnlyGameCore();
         _;
     }
 
     function triggerMint() external {
-        require(block.number >= lastMintBlock + config.mintIntervalBlocks(), "Too early");
+        if (!(block.number >= lastMintBlock + config.mintIntervalBlocks())) revert TooEarly();
         lastMintBlock = block.number;
 
         uint256 requestId = s_vrfCoordinator.requestRandomWords(
@@ -100,7 +102,20 @@ contract AgentboxEconomy is ERC20, VRFConsumerBaseV2Plus {
         uint256 amount = groundTokens[landId];
         if (amount > 0) {
             groundTokens[landId] = 0;
-            _unreliableBalances[account].push(UnreliableBalance({amount: amount, obtainedBlock: block.number}));
+            
+            uint256 len = _unreliableBalances[account].length;
+            if (len >= 50) {
+                stabilizeBalance(account);
+                len = _unreliableBalances[account].length;
+            }
+
+            if (len > 0 && block.number >= _unreliableBalances[account][len - 1].obtainedBlock && block.number - _unreliableBalances[account][len - 1].obtainedBlock <= 50) {
+                _unreliableBalances[account][len - 1].amount += amount;
+            } else {
+                if (!(len < 50)) revert PleaseStabilizeBalanceFirst();
+                _unreliableBalances[account].push(UnreliableBalance({amount: amount, obtainedBlock: block.number}));
+            }
+
             _isBypassingReliableCheck = true;
             _mint(account, amount);
             _isBypassingReliableCheck = false;
@@ -140,7 +155,18 @@ contract AgentboxEconomy is ERC20, VRFConsumerBaseV2Plus {
         uint256 total = unreliableBalanceOf(fromAccount);
         delete _unreliableBalances[fromAccount];
         if (total > 0) {
-            _unreliableBalances[toAccount].push(UnreliableBalance({amount: total, obtainedBlock: block.number}));
+            stabilizeBalance(toAccount);
+            uint256 len = _unreliableBalances[toAccount].length;
+            if (len > 0 && block.number >= _unreliableBalances[toAccount][len - 1].obtainedBlock && block.number - _unreliableBalances[toAccount][len - 1].obtainedBlock <= 50) {
+                _unreliableBalances[toAccount][len - 1].amount += total;
+            } else {
+                if (len >= 50) {
+                    _unreliableBalances[toAccount][len - 1].amount += total;
+                } else {
+                    _unreliableBalances[toAccount].push(UnreliableBalance({amount: total, obtainedBlock: block.number}));
+                }
+            }
+            
             _isBypassingReliableCheck = true;
             _transfer(fromAccount, toAccount, total);
             _isBypassingReliableCheck = false;
@@ -152,7 +178,7 @@ contract AgentboxEconomy is ERC20, VRFConsumerBaseV2Plus {
         uint256 totalUnreliable = unreliableBalanceOf(account);
         uint256 currentBalance = balanceOf(account);
         uint256 reliable = currentBalance > totalUnreliable ? currentBalance - totalUnreliable : 0;
-        require(amount <= reliable, "Insufficient reliable balance");
+        if (!(amount <= reliable)) revert InsufficientReliableBalance();
         
         _isBypassingReliableCheck = true;
         _burn(account, amount);
@@ -165,7 +191,7 @@ contract AgentboxEconomy is ERC20, VRFConsumerBaseV2Plus {
             uint256 totalUnreliable = unreliableBalanceOf(from);
             uint256 currentBalance = balanceOf(from);
             uint256 reliable = currentBalance > totalUnreliable ? currentBalance - totalUnreliable : 0;
-            require(value <= reliable, "Insufficient reliable balance");
+            if (!(value <= reliable)) revert InsufficientReliableBalance();
         }
         super._update(from, to, value);
     }

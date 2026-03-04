@@ -2,10 +2,9 @@
 pragma solidity ^0.8.20;
 
 import "../storage/AgentboxStorage.sol";
+import "../storage/LibDiamond.sol";
 
 contract AgentboxDiamond {
-    mapping(bytes4 => address) public facets;
-
     event DiamondCut(FacetCut[] _diamondCut);
 
     enum FacetCutAction {Add, Replace, Remove}
@@ -26,23 +25,71 @@ contract AgentboxDiamond {
     }
 
     function diamondCut(FacetCut[] calldata _diamondCut) external onlyOwner {
+        LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
         for (uint256 i = 0; i < _diamondCut.length; i++) {
             FacetCut memory cut = _diamondCut[i];
+            address facetAddress = cut.facetAddress;
             for (uint256 j = 0; j < cut.functionSelectors.length; j++) {
                 bytes4 selector = cut.functionSelectors[j];
+                
                 if (cut.action == FacetCutAction.Add || cut.action == FacetCutAction.Replace) {
-                    require(cut.facetAddress != address(0), "Facet cannot be zero");
-                    facets[selector] = cut.facetAddress;
+                    require(facetAddress != address(0), "Facet cannot be zero");
+                    address oldFacetAddress = ds.selectorToFacetAndPosition[selector].facetAddress;
+                    
+                    if (cut.action == FacetCutAction.Replace && oldFacetAddress != address(0)) {
+                        _removeSelector(ds, oldFacetAddress, selector);
+                    }
+                    
+                    if (ds.facetFunctionSelectors[facetAddress].functionSelectors.length == 0) {
+                        ds.facetFunctionSelectors[facetAddress].facetAddressPosition = ds.facetAddresses.length;
+                        ds.facetAddresses.push(facetAddress);
+                    }
+                    
+                    ds.selectorToFacetAndPosition[selector] = LibDiamond.FacetAddressAndPosition(
+                        facetAddress,
+                        uint96(ds.facetFunctionSelectors[facetAddress].functionSelectors.length)
+                    );
+                    ds.facetFunctionSelectors[facetAddress].functionSelectors.push(selector);
+                    
                 } else if (cut.action == FacetCutAction.Remove) {
-                    delete facets[selector];
+                    address oldFacetAddress = ds.selectorToFacetAndPosition[selector].facetAddress;
+                    require(oldFacetAddress != address(0), "Selector not found");
+                    _removeSelector(ds, oldFacetAddress, selector);
+                    delete ds.selectorToFacetAndPosition[selector];
                 }
             }
         }
         emit DiamondCut(_diamondCut);
     }
+    
+    function _removeSelector(LibDiamond.DiamondStorage storage ds, address facetAddress, bytes4 selector) internal {
+        uint96 selectorPosition = ds.selectorToFacetAndPosition[selector].functionSelectorPosition;
+        uint256 lastSelectorPosition = ds.facetFunctionSelectors[facetAddress].functionSelectors.length - 1;
+        
+        if (selectorPosition != lastSelectorPosition) {
+            bytes4 lastSelector = ds.facetFunctionSelectors[facetAddress].functionSelectors[lastSelectorPosition];
+            ds.facetFunctionSelectors[facetAddress].functionSelectors[selectorPosition] = lastSelector;
+            ds.selectorToFacetAndPosition[lastSelector].functionSelectorPosition = selectorPosition;
+        }
+        
+        ds.facetFunctionSelectors[facetAddress].functionSelectors.pop();
+        
+        if (lastSelectorPosition == 0) {
+            uint256 lastFacetAddressPosition = ds.facetAddresses.length - 1;
+            uint256 facetAddressPosition = ds.facetFunctionSelectors[facetAddress].facetAddressPosition;
+            if (facetAddressPosition != lastFacetAddressPosition) {
+                address lastFacetAddress = ds.facetAddresses[lastFacetAddressPosition];
+                ds.facetAddresses[facetAddressPosition] = lastFacetAddress;
+                ds.facetFunctionSelectors[lastFacetAddress].facetAddressPosition = facetAddressPosition;
+            }
+            ds.facetAddresses.pop();
+            delete ds.facetFunctionSelectors[facetAddress].facetAddressPosition;
+        }
+    }
 
     fallback() external payable {
-        address facet = facets[msg.sig];
+        LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
+        address facet = ds.selectorToFacetAndPosition[msg.sig].facetAddress;
         require(facet != address(0), "Diamond: Function does not exist");
         assembly {
             calldatacopy(0, 0, calldatasize())

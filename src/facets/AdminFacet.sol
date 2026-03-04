@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import "../Errors.sol";
+
 import "./AgentboxBase.sol";
 import "../AgentboxConfig.sol";
 
@@ -21,7 +23,8 @@ contract AdminFacet is AgentboxBase {
     }
 
     function withdrawEth() external onlyOwner {
-        payable(msg.sender).transfer(address(this).balance);
+        (bool success, ) = msg.sender.call{value: address(this).balance}("");
+        if (!success) revert TransferFailed();
     }
 
     function setResourcePoint(uint256 x, uint256 y, uint256 resourceType, uint256 initialStock) external onlyOwner {
@@ -29,7 +32,7 @@ contract AdminFacet is AgentboxBase {
         AgentboxConfig config = AgentboxConfig(state.configContract);
         uint256 landId = y * config.mapWidth() + x;
         state.resourcePoints[landId] =
-            AgentboxStorage.ResourcePoint({resourceType: resourceType, stock: initialStock, isResourcePoint: true});
+            AgentboxStorage.ResourcePoint({resourceType: uint64(resourceType), stock: uint64(initialStock), isResourcePoint: true});
     }
 
     function setSkillBlocks(uint256 skillId, uint256 requiredBlocks) external onlyOwner {
@@ -40,9 +43,9 @@ contract AdminFacet is AgentboxBase {
     function setNPC(uint256 npcId, uint256 x, uint256 y, uint256 skillId) external onlyOwner {
         AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
         AgentboxStorage.NPC storage npc = state.npcs[npcId];
-        npc.position.x = x;
-        npc.position.y = y;
-        npc.skillId = skillId;
+        npc.position.x = uint32(x);
+        npc.position.y = uint32(y);
+        npc.skillId = uint32(skillId);
     }
 
     function setRecipe(
@@ -53,14 +56,14 @@ contract AdminFacet is AgentboxBase {
         uint256 requiredBlocks,
         uint256 outputEqId
     ) external onlyOwner {
-        require(resourceTypes.length == amounts.length, "Mismatched arrays");
+        if (!(resourceTypes.length == amounts.length)) revert MismatchedArrays();
         AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
         state.recipes[recipeId] = AgentboxStorage.Recipe({
             requiredResources: resourceTypes,
             requiredAmounts: amounts,
-            requiredSkill: skillId,
-            requiredBlocks: requiredBlocks,
-            outputEquipmentId: outputEqId
+            requiredSkill: uint64(skillId),
+            requiredBlocks: uint64(requiredBlocks),
+            outputEquipmentId: uint64(outputEqId)
         });
     }
 
@@ -75,12 +78,12 @@ contract AdminFacet is AgentboxBase {
     ) external onlyOwner {
         AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
         state.equipments[equipmentId] = AgentboxStorage.EquipmentConfig({
-            slot: slot,
-            speedBonus: speedBonus,
-            attackBonus: attackBonus,
-            defenseBonus: defenseBonus,
-            maxHpBonus: maxHpBonus,
-            rangeBonus: rangeBonus
+            slot: uint32(slot),
+            speedBonus: int32(speedBonus),
+            attackBonus: int32(attackBonus),
+            defenseBonus: int32(defenseBonus),
+            maxHpBonus: int32(maxHpBonus),
+            rangeBonus: int32(rangeBonus)
         });
     }
 }

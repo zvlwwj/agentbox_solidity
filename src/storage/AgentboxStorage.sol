@@ -13,53 +13,53 @@ library AgentboxStorage {
     }
 
     struct Position {
-        uint256 x;
-        uint256 y;
+        uint32 x;
+        uint32 y;
     }
 
     struct RoleAttributes {
-        uint256 speed;
-        uint256 attack;
-        uint256 defense;
-        uint256 hp;
-        uint256 maxHp;
-        uint256 range;
-        uint256 mp;
+        uint32 speed;
+        uint32 attack;
+        uint32 defense;
+        uint32 hp;
+        uint32 maxHp;
+        uint32 range;
+        uint32 mp;
     }
 
     struct CraftingState {
-        uint256 startBlock;
-        uint256 requiredBlocks;
-        uint256 recipeId;
+        uint64 startBlock;
+        uint64 requiredBlocks;
+        uint64 recipeId;
     }
 
     struct LearningState {
-        uint256 startBlock;
-        uint256 requiredBlocks;
-        uint256 targetId;
-        uint256 skillId;
+        uint64 startBlock;
+        uint64 requiredBlocks;
+        uint32 targetId;
+        uint32 skillId;
         bool isNPC;
         address teacherWallet;
     }
 
     struct TeachingState {
-        uint256 startBlock;
-        uint256 requiredBlocks;
+        uint64 startBlock;
+        uint64 requiredBlocks;
+        uint32 skillId;
         address studentWallet;
-        uint256 skillId;
     }
 
     struct MovingState {
-        uint256 startBlock;
-        uint256 requiredBlocks;
+        uint64 startBlock;
+        uint64 requiredBlocks;
         Position targetPosition;
     }
 
     struct GatheringState {
-        uint256 startBlock;
-        uint256 requiredBlocks;
-        uint256 targetLandId;
-        uint256 amount;
+        uint64 startBlock;
+        uint64 requiredBlocks;
+        uint64 targetLandId;
+        uint64 amount;
     }
 
     struct RoleData {
@@ -76,34 +76,34 @@ library AgentboxStorage {
     }
 
     struct ResourcePoint {
-        uint256 resourceType;
-        uint256 stock;
+        uint64 resourceType;
+        uint64 stock;
         bool isResourcePoint;
     }
 
     struct NPC {
-        uint256 skillId;
+        uint32 skillId;
         Position position;
+        uint64 startBlock;
         bool isTeaching;
-        uint256 studentId;
-        uint256 startBlock;
+        uint160 studentId;
     }
 
     struct Recipe {
         uint256[] requiredResources;
         uint256[] requiredAmounts;
-        uint256 requiredSkill;
-        uint256 requiredBlocks;
-        uint256 outputEquipmentId;
+        uint64 requiredSkill;
+        uint64 requiredBlocks;
+        uint64 outputEquipmentId;
     }
 
     struct EquipmentConfig {
-        uint256 slot; // e.g. 1: Weapon, 2: Armor, etc. (0 means not an equipment)
-        int256 speedBonus;
-        int256 attackBonus;
-        int256 defenseBonus;
-        int256 maxHpBonus;
-        int256 rangeBonus;
+        uint32 slot; // e.g. 1: Weapon, 2: Armor, etc. (0 means not an equipment)
+        int32 speedBonus;
+        int32 attackBonus;
+        int32 defenseBonus;
+        int32 maxHpBonus;
+        int32 rangeBonus;
     }
 
     struct GameState {

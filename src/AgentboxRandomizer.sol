@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import "./Errors.sol";
+
 import "@openzeppelin/contracts/access/Ownable.sol";
 import {VRFConsumerBaseV2Plus} from "@chainlink/contracts/src/v0.8/vrf/dev/VRFConsumerBaseV2Plus.sol";
 import {IVRFCoordinatorV2Plus} from "@chainlink/contracts/src/v0.8/vrf/dev/interfaces/IVRFCoordinatorV2Plus.sol";
@@ -25,6 +27,7 @@ contract AgentboxRandomizer is VRFConsumerBaseV2Plus {
     struct RequestInfo {
         RequestType reqType;
         uint256 targetId;
+        uint256 requestBlock;
     }
 
     mapping(uint256 => RequestInfo) public requests;
@@ -41,7 +44,7 @@ contract AgentboxRandomizer is VRFConsumerBaseV2Plus {
     }
 
     modifier onlyCore() {
-        require(msg.sender == gameCore, "Only game core");
+        if (!(msg.sender == gameCore)) revert OnlyGameCore();
         _;
     }
 
@@ -56,7 +59,7 @@ contract AgentboxRandomizer is VRFConsumerBaseV2Plus {
                 extraArgs: VRFV2PlusClient._argsToBytes(VRFV2PlusClient.ExtraArgsV1({nativePayment: false}))
             })
         );
-        requests[requestId] = RequestInfo({reqType: RequestType.Respawn, targetId: roleId});
+        requests[requestId] = RequestInfo({reqType: RequestType.Respawn, targetId: roleId, requestBlock: block.number});
     }
 
     function requestSpawn(uint256 roleId) external onlyCore returns (uint256 requestId) {
@@ -70,7 +73,7 @@ contract AgentboxRandomizer is VRFConsumerBaseV2Plus {
                 extraArgs: VRFV2PlusClient._argsToBytes(VRFV2PlusClient.ExtraArgsV1({nativePayment: false}))
             })
         );
-        requests[requestId] = RequestInfo({reqType: RequestType.Spawn, targetId: roleId});
+        requests[requestId] = RequestInfo({reqType: RequestType.Spawn, targetId: roleId, requestBlock: block.number});
     }
 
     function requestNPCRefresh(uint256 npcId) external onlyCore returns (uint256 requestId) {
@@ -84,7 +87,7 @@ contract AgentboxRandomizer is VRFConsumerBaseV2Plus {
                 extraArgs: VRFV2PlusClient._argsToBytes(VRFV2PlusClient.ExtraArgsV1({nativePayment: false}))
             })
         );
-        requests[requestId] = RequestInfo({reqType: RequestType.NPCRefresh, targetId: npcId});
+        requests[requestId] = RequestInfo({reqType: RequestType.NPCRefresh, targetId: npcId, requestBlock: block.number});
     }
 
     function fulfillRandomWords(uint256 requestId, uint256[] calldata randomWords) internal override {
@@ -96,5 +99,32 @@ contract AgentboxRandomizer is VRFConsumerBaseV2Plus {
         } else if (req.reqType == RequestType.Spawn) {
             IAgentboxCore(gameCore).processSpawn(req.targetId, randomWords[0]);
         }
+
+        delete requests[requestId];
+    }
+
+    function retryRequest(uint256 oldRequestId) external returns (uint256 newRequestId) {
+        RequestInfo memory req = requests[oldRequestId];
+        if (!(req.requestBlock > 0)) revert RequestDoesNotExist();
+        if (!(block.number >= req.requestBlock + 100)) revert TooEarlyToRetry();
+
+        newRequestId = s_vrfCoordinator.requestRandomWords(
+            VRFV2PlusClient.RandomWordsRequest({
+                keyHash: s_keyHash,
+                subId: s_subscriptionId,
+                requestConfirmations: requestConfirmations,
+                callbackGasLimit: callbackGasLimit,
+                numWords: 1,
+                extraArgs: VRFV2PlusClient._argsToBytes(VRFV2PlusClient.ExtraArgsV1({nativePayment: false}))
+            })
+        );
+
+        requests[newRequestId] = RequestInfo({
+            reqType: req.reqType,
+            targetId: req.targetId,
+            requestBlock: block.number
+        });
+
+        delete requests[oldRequestId];
     }
 }

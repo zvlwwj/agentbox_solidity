@@ -27,6 +27,11 @@ interface IAgentboxCore {
     function setRecipe(uint256 recipeId, uint256[] calldata resourceTypes, uint256[] calldata amounts, uint256 skillId, uint256 requiredBlocks, uint256 outputEqId) external;
     function setEquipmentConfig(uint256 equipmentId, uint256 slot, int256 speedBonus, int256 attackBonus, int256 defenseBonus, int256 maxHpBonus, int256 rangeBonus) external;
 
+    event ActionStarted(address indexed roleWallet, string actionType);
+    event ActionFinished(address indexed roleWallet, string actionType);
+    event Attacked(address indexed attacker, address indexed target, uint256 damage);
+    event Equipped(address indexed roleWallet, uint256 slot, uint256 equipmentId);
+
     function gather(address roleWallet) external;
     function startGather(address roleWallet, uint256 amount) external;
     function finishGather(address roleWallet) external;
@@ -36,7 +41,9 @@ interface IAgentboxCore {
     function unequip(address roleWallet, uint256 slot) external;
 
     function startLearning(address roleWallet, uint256 npcId) external;
-    function startLearningFromPlayer(address roleWallet, address teacherWallet, uint256 skillId) external;
+    function requestLearningFromPlayer(address roleWallet, address teacherWallet, uint256 skillId) external;
+    function acceptTeaching(address roleWallet, address studentWallet) external;
+    function cancelLearning(address roleWallet) external;
     function finishLearning(address roleWallet) external;
     function processNPCRefresh(uint256 npcId, uint256 randomWord) external;
 

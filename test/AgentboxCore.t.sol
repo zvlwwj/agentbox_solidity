@@ -16,21 +16,22 @@ import "../src/facets/LearnFacet.sol";
 import "../src/facets/MapFacet.sol";
 import "../src/facets/RoleFacet.sol";
 import "../src/facets/SocialFacet.sol";
+import "../src/facets/DiamondLoupeFacet.sol";
 import "../src/interfaces/IAgentboxCore.sol";
-import {VRFCoordinatorV2Mock} from "@chainlink/contracts/src/v0.8/vrf/mocks/VRFCoordinatorV2Mock.sol";
+import {VRFCoordinatorV2_5Mock} from "@chainlink/contracts/src/v0.8/vrf/mocks/VRFCoordinatorV2_5Mock.sol";
 
 contract AgentboxCoreTest is Test {
     AgentboxConfig config;
     AgentboxRoleWallet walletImpl;
     AgentboxRole roleToken;
-    VRFCoordinatorV2Mock vrfMock;
+    VRFCoordinatorV2_5Mock vrfMock;
     AgentboxRandomizer randomizer;
     AgentboxEconomy economy;
     AgentboxResource resource;
     IAgentboxCore core;
 
     address player1 = address(0x111);
-    uint64 subId;
+    uint256 subId;
 
     function setUp() public {
         vm.deal(player1, 10 ether);
@@ -43,7 +44,7 @@ contract AgentboxCoreTest is Test {
         roleToken = new AgentboxRole(address(walletImpl));
 
         // Deploy VRF Mock
-        vrfMock = new VRFCoordinatorV2Mock(0.1 ether, 1e9);
+        vrfMock = new VRFCoordinatorV2_5Mock(0.1 ether, 1e9, 4e15);
         subId = vrfMock.createSubscription();
         vrfMock.fundSubscription(subId, 100 ether);
 
@@ -69,9 +70,10 @@ contract AgentboxCoreTest is Test {
         MapFacet mapFacet = new MapFacet();
         RoleFacet roleFacet = new RoleFacet();
         SocialFacet socialFacet = new SocialFacet();
+        DiamondLoupeFacet diamondLoupeFacet = new DiamondLoupeFacet();
 
         // Build Diamond Cut
-        AgentboxDiamond.FacetCut[] memory cuts = new AgentboxDiamond.FacetCut[](7);
+        AgentboxDiamond.FacetCut[] memory cuts = new AgentboxDiamond.FacetCut[](8);
         
         bytes4[] memory adminSelectors = new bytes4[](7);
         adminSelectors[0] = AdminFacet.initialize.selector;
@@ -101,11 +103,13 @@ contract AgentboxCoreTest is Test {
         gatherCraftSelectors[6] = GatherCraftFacet.unequip.selector;
         cuts[2] = AgentboxDiamond.FacetCut({facetAddress: address(gatherCraftFacet), action: AgentboxDiamond.FacetCutAction.Add, functionSelectors: gatherCraftSelectors});
 
-        bytes4[] memory learnSelectors = new bytes4[](4);
+        bytes4[] memory learnSelectors = new bytes4[](6);
         learnSelectors[0] = LearnFacet.startLearning.selector;
-        learnSelectors[1] = LearnFacet.startLearningFromPlayer.selector;
-        learnSelectors[2] = LearnFacet.finishLearning.selector;
-        learnSelectors[3] = IAgentboxCore.processNPCRefresh.selector;
+        learnSelectors[1] = LearnFacet.requestLearningFromPlayer.selector;
+        learnSelectors[2] = LearnFacet.acceptTeaching.selector;
+        learnSelectors[3] = LearnFacet.cancelLearning.selector;
+        learnSelectors[4] = LearnFacet.finishLearning.selector;
+        learnSelectors[5] = IAgentboxCore.processNPCRefresh.selector;
         cuts[3] = AgentboxDiamond.FacetCut({facetAddress: address(learnFacet), action: AgentboxDiamond.FacetCutAction.Add, functionSelectors: learnSelectors});
 
         bytes4[] memory mapSelectors = new bytes4[](4);
@@ -124,6 +128,13 @@ contract AgentboxCoreTest is Test {
         socialSelectors[0] = SocialFacet.sendMessage.selector;
         socialSelectors[1] = SocialFacet.sendGlobalMessage.selector;
         cuts[6] = AgentboxDiamond.FacetCut({facetAddress: address(socialFacet), action: AgentboxDiamond.FacetCutAction.Add, functionSelectors: socialSelectors});
+
+        bytes4[] memory loupeSelectors = new bytes4[](4);
+        loupeSelectors[0] = DiamondLoupeFacet.facets.selector;
+        loupeSelectors[1] = DiamondLoupeFacet.facetFunctionSelectors.selector;
+        loupeSelectors[2] = DiamondLoupeFacet.facetAddresses.selector;
+        loupeSelectors[3] = DiamondLoupeFacet.facetAddress.selector;
+        cuts[7] = AgentboxDiamond.FacetCut({facetAddress: address(diamondLoupeFacet), action: AgentboxDiamond.FacetCutAction.Add, functionSelectors: loupeSelectors});
 
         // Execute Cut
         diamond.diamondCut(cuts);

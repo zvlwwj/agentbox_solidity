@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import "../Errors.sol";
+
 import "./AgentboxBase.sol";
 import "../AgentboxConfig.sol";
 import "../AgentboxEconomy.sol";
@@ -30,11 +32,11 @@ contract MapFacet is AgentboxBase {
         uint256 mapWidth = config.mapWidth();
         uint256 landId = y * mapWidth + x;
 
-        require(!state.resourcePoints[landId].isResourcePoint, "Cannot buy resource point");
-        require(state.landOwners[landId] == address(0), "Land already owned");
+        if (!(!state.resourcePoints[landId].isResourcePoint)) revert CannotBuyResourcePoint();
+        if (!(state.landOwners[landId] == address(0))) revert LandAlreadyOwned();
 
         AgentboxStorage.RoleData storage role = state.roles[roleWallet];
-        require(role.position.x == x && role.position.y == y, "Must be on land to buy");
+        if (!(role.position.x == x && role.position.y == y)) revert MustBeOnLandToBuy();
 
         AgentboxRole roleToken = AgentboxRole(state.roleContract);
         uint256 roleId = AgentboxRoleWallet(payable(roleWallet)).roleId();
@@ -58,10 +60,10 @@ contract MapFacet is AgentboxBase {
         uint256 roleId = AgentboxRoleWallet(payable(roleWallet)).roleId();
         address owner = roleToken.ownerOf(roleId);
 
-        require(state.landOwners[landId] == owner, "Not the land owner");
+        if (!(state.landOwners[landId] == owner)) revert NotTheLandOwner();
 
         AgentboxStorage.RoleData storage role = state.roles[roleWallet];
-        require(role.position.x == x && role.position.y == y, "Must be on land to sell");
+        if (!(role.position.x == x && role.position.y == y)) revert MustBeOnLandToSell();
 
         // Clear previous contract mapping if exists
         address prevContract = state.landContracts[landId];
@@ -80,7 +82,8 @@ contract MapFacet is AgentboxBase {
         AgentboxConfig config = AgentboxConfig(state.configContract);
         uint256 landId = y * config.mapWidth() + x;
         
-        require(state.landOwners[landId] == msg.sender, "Not land owner");
+        if (!(state.landOwners[landId] == msg.sender)) revert NotLandOwner();
+        if (!(!state.isLandContract[contractAddress])) revert ContractAlreadyBound();
         
         address prevContract = state.landContracts[landId];
         if (prevContract != address(0)) {

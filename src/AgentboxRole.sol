@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import "./Errors.sol";
+
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/proxy/Clones.sol";
@@ -38,13 +40,13 @@ contract AgentboxRole is ERC721, Ownable {
     }
 
     function setController(uint256 roleId, address controller) external {
-        require(ownerOf(roleId) == msg.sender, "Not the owner");
+        if (!(ownerOf(roleId) == msg.sender)) revert NotTheOwner();
         _controllers[roleId] = controller;
         emit ControllerSet(roleId, controller);
     }
 
     function clearController(uint256 roleId) external {
-        require(ownerOf(roleId) == msg.sender, "Not the owner");
+        if (!(ownerOf(roleId) == msg.sender)) revert NotTheOwner();
         delete _controllers[roleId];
         emit ControllerCleared(roleId);
     }

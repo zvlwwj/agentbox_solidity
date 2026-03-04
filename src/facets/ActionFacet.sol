@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import "../Errors.sol";
+
 import "./AgentboxBase.sol";
 import "../AgentboxConfig.sol";
 import "../AgentboxEconomy.sol";
@@ -10,24 +12,24 @@ contract ActionFacet is AgentboxBase {
         AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
         AgentboxStorage.RoleData storage role = state.roles[roleWallet];
 
-        require(role.state == AgentboxStorage.RoleState.Idle, "Role not idle");
+        if (!(role.state == AgentboxStorage.RoleState.Idle)) revert RoleNotIdle();
 
         uint256 absDx = dx >= 0 ? uint256(dx) : uint256(-dx);
         uint256 absDy = dy >= 0 ? uint256(dy) : uint256(-dy);
-        require(absDx + absDy <= role.attributes.speed, "Move exceeds speed");
+        if (!(absDx + absDy <= role.attributes.speed)) revert MoveExceedsSpeed();
 
         AgentboxConfig config = AgentboxConfig(state.configContract);
         uint256 mapWidth = config.mapWidth();
         uint256 mapHeight = config.mapHeight();
 
-        int256 newX = (int256(role.position.x) + dx) % int256(mapWidth);
+        int256 newX = (int256(uint256(role.position.x)) + dx) % int256(mapWidth);
         if (newX < 0) newX += int256(mapWidth);
 
-        int256 newY = (int256(role.position.y) + dy) % int256(mapHeight);
+        int256 newY = (int256(uint256(role.position.y)) + dy) % int256(mapHeight);
         if (newY < 0) newY += int256(mapHeight);
 
-        role.position.x = uint256(newX);
-        role.position.y = uint256(newY);
+        role.position.x = uint32(uint256(newX));
+        role.position.y = uint32(uint256(newY));
 
         if (state.economyContract != address(0)) {
             AgentboxEconomy economy = AgentboxEconomy(state.economyContract);
@@ -39,33 +41,41 @@ contract ActionFacet is AgentboxBase {
         AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
         AgentboxStorage.RoleData storage role = state.roles[roleWallet];
 
-        require(role.state == AgentboxStorage.RoleState.Idle, "Role not idle");
+        if (!(role.state == AgentboxStorage.RoleState.Idle)) revert RoleNotIdle();
 
         AgentboxConfig config = AgentboxConfig(state.configContract);
-        require(targetX < config.mapWidth() && targetY < config.mapHeight(), "Target out of bounds");
+        uint256 mapWidth = config.mapWidth();
+        uint256 mapHeight = config.mapHeight();
+        if (!(targetX < mapWidth && targetY < mapHeight)) revert TargetOutOfBounds();
 
         uint256 dx = targetX > role.position.x ? targetX - role.position.x : role.position.x - targetX;
         uint256 dy = targetY > role.position.y ? targetY - role.position.y : role.position.y - targetY;
+        
+        dx = dx > mapWidth / 2 ? mapWidth - dx : dx;
+        dy = dy > mapHeight / 2 ? mapHeight - dy : dy;
+
         uint256 distance = dx + dy;
         
-        require(distance > 0, "Already at target");
+        if (!(distance > 0)) revert AlreadyAtTarget();
         
         uint256 requiredBlocks = (distance + role.attributes.speed - 1) / role.attributes.speed;
 
         role.state = AgentboxStorage.RoleState.Moving;
         role.moving = AgentboxStorage.MovingState({
-            startBlock: block.number,
-            requiredBlocks: requiredBlocks,
-            targetPosition: AgentboxStorage.Position(targetX, targetY)
+            startBlock: uint64(block.number),
+            requiredBlocks: uint64(requiredBlocks),
+            targetPosition: AgentboxStorage.Position(uint32(targetX), uint32(targetY))
         });
+
+        emit ActionStarted(roleWallet, "Move");
     }
 
     function finishMove(address roleWallet) external onlyRoleController(roleWallet) {
         AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
         AgentboxStorage.RoleData storage role = state.roles[roleWallet];
 
-        require(role.state == AgentboxStorage.RoleState.Moving, "Role not moving");
-        require(block.number >= role.moving.startBlock + role.moving.requiredBlocks, "Move not finished yet");
+        if (!(role.state == AgentboxStorage.RoleState.Moving)) revert RoleNotMoving();
+        if (!(block.number >= role.moving.startBlock + role.moving.requiredBlocks)) revert MoveNotFinishedYet();
 
         role.position = role.moving.targetPosition;
         role.state = AgentboxStorage.RoleState.Idle;
@@ -74,6 +84,8 @@ contract ActionFacet is AgentboxBase {
             AgentboxEconomy economy = AgentboxEconomy(state.economyContract);
             economy.pickupTokens(roleWallet, role.position.x, role.position.y);
         }
+
+        emit ActionFinished(roleWallet, "Move");
     }
 
     function attack(address roleWallet, address targetWallet) external onlyRoleController(roleWallet) {
@@ -81,8 +93,8 @@ contract ActionFacet is AgentboxBase {
         AgentboxStorage.RoleData storage attacker = state.roles[roleWallet];
         AgentboxStorage.RoleData storage target = state.roles[targetWallet];
 
-        require(attacker.state == AgentboxStorage.RoleState.Idle, "Attacker not idle");
-        require(target.attributes.hp > 0, "Target already dead");
+        if (!(attacker.state == AgentboxStorage.RoleState.Idle)) revert AttackerNotIdle();
+        if (!(target.attributes.hp > 0)) revert TargetAlreadyDead();
 
         AgentboxConfig config = AgentboxConfig(state.configContract);
         uint256 mapWidth = config.mapWidth();
@@ -98,7 +110,7 @@ contract ActionFacet is AgentboxBase {
         dx = dx > mapWidth / 2 ? mapWidth - dx : dx;
         dy = dy > mapHeight / 2 ? mapHeight - dy : dy;
 
-        require(dx + dy <= attacker.attributes.range, "Target out of range");
+        if (!(dx + dy <= attacker.attributes.range)) revert TargetOutOfRange();
 
         uint256 damage = attacker.attributes.attack > target.attributes.defense
             ? attacker.attributes.attack - target.attributes.defense
@@ -128,6 +140,9 @@ contract ActionFacet is AgentboxBase {
                     student.state = AgentboxStorage.RoleState.Idle;
                 }
             }
+            
+            // Cleanup any other states (gathering, crafting, moving)
+            target.state = AgentboxStorage.RoleState.Idle;
 
             if (state.economyContract != address(0)) {
                 AgentboxEconomy(state.economyContract).transferUnreliableOnDeath(targetWallet, roleWallet);
@@ -137,10 +152,12 @@ contract ActionFacet is AgentboxBase {
                 uint256 targetId = AgentboxRoleWallet(payable(targetWallet)).roleId();
                 (bool success,) =
                     state.randomizerContract.call(abi.encodeWithSignature("requestRespawn(uint256)", targetId));
-                require(success, "Randomizer request failed");
+                if (!(success)) revert RandomizerRequestFailed();
             }
         } else {
-            target.attributes.hp -= damage;
+            target.attributes.hp -= uint32(damage);
         }
+
+        emit Attacked(roleWallet, targetWallet, damage);
     }
 }

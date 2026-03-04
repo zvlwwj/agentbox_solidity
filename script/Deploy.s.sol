@@ -16,6 +16,7 @@ import "../src/facets/LearnFacet.sol";
 import "../src/facets/MapFacet.sol";
 import "../src/facets/RoleFacet.sol";
 import "../src/facets/SocialFacet.sol";
+import "../src/facets/DiamondLoupeFacet.sol";
 import "../src/interfaces/IAgentboxCore.sol";
 
 contract DeployScript is Script {
@@ -46,9 +47,10 @@ contract DeployScript is Script {
         MapFacet mapFacet = new MapFacet();
         RoleFacet roleFacet = new RoleFacet();
         SocialFacet socialFacet = new SocialFacet();
+        DiamondLoupeFacet diamondLoupeFacet = new DiamondLoupeFacet();
 
         // Build Diamond Cut
-        AgentboxDiamond.FacetCut[] memory cuts = new AgentboxDiamond.FacetCut[](7);
+        AgentboxDiamond.FacetCut[] memory cuts = new AgentboxDiamond.FacetCut[](8);
         
         bytes4[] memory adminSelectors = new bytes4[](7);
         adminSelectors[0] = AdminFacet.initialize.selector;
@@ -77,11 +79,13 @@ contract DeployScript is Script {
         gatherCraftSelectors[6] = GatherCraftFacet.unequip.selector;
         cuts[2] = AgentboxDiamond.FacetCut({facetAddress: address(gatherCraftFacet), action: AgentboxDiamond.FacetCutAction.Add, functionSelectors: gatherCraftSelectors});
 
-        bytes4[] memory learnSelectors = new bytes4[](4);
+        bytes4[] memory learnSelectors = new bytes4[](6);
         learnSelectors[0] = LearnFacet.startLearning.selector;
-        learnSelectors[1] = LearnFacet.startLearningFromPlayer.selector;
-        learnSelectors[2] = LearnFacet.finishLearning.selector;
-        learnSelectors[3] = LearnFacet.processNPCRefresh.selector;
+        learnSelectors[1] = LearnFacet.requestLearningFromPlayer.selector;
+        learnSelectors[2] = LearnFacet.acceptTeaching.selector;
+        learnSelectors[3] = LearnFacet.cancelLearning.selector;
+        learnSelectors[4] = LearnFacet.finishLearning.selector;
+        learnSelectors[5] = LearnFacet.processNPCRefresh.selector;
         cuts[3] = AgentboxDiamond.FacetCut({facetAddress: address(learnFacet), action: AgentboxDiamond.FacetCutAction.Add, functionSelectors: learnSelectors});
 
         bytes4[] memory mapSelectors = new bytes4[](4);
@@ -101,6 +105,13 @@ contract DeployScript is Script {
         socialSelectors[0] = SocialFacet.sendMessage.selector;
         socialSelectors[1] = SocialFacet.sendGlobalMessage.selector;
         cuts[6] = AgentboxDiamond.FacetCut({facetAddress: address(socialFacet), action: AgentboxDiamond.FacetCutAction.Add, functionSelectors: socialSelectors});
+
+        bytes4[] memory loupeSelectors = new bytes4[](4);
+        loupeSelectors[0] = DiamondLoupeFacet.facets.selector;
+        loupeSelectors[1] = DiamondLoupeFacet.facetFunctionSelectors.selector;
+        loupeSelectors[2] = DiamondLoupeFacet.facetAddresses.selector;
+        loupeSelectors[3] = DiamondLoupeFacet.facetAddress.selector;
+        cuts[7] = AgentboxDiamond.FacetCut({facetAddress: address(diamondLoupeFacet), action: AgentboxDiamond.FacetCutAction.Add, functionSelectors: loupeSelectors});
 
         // Execute Cut
         diamond.diamondCut(cuts);

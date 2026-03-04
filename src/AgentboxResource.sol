@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import "./Errors.sol";
+
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -18,7 +20,7 @@ contract AgentboxResource is ERC1155, Ownable {
     }
 
     modifier onlyCore() {
-        require(msg.sender == gameCore, "Only game core");
+        if (!(msg.sender == gameCore)) revert OnlyGameCore();
         _;
     }
 
@@ -33,12 +35,12 @@ contract AgentboxResource is ERC1155, Ownable {
     function _update(address from, address to, uint256[] memory ids, uint256[] memory values) internal override {
         if (from != address(0) && to != address(0)) {
             (bool fromValid, uint256 fromX, uint256 fromY) = ICorePosition(gameCore).getEntityPosition(from);
-            require(fromValid, "Spatial hook: 'from' entity not registered");
+            if (!(fromValid)) revert SpatialHookFromEntityNotRegistered();
             
             (bool toValid, uint256 toX, uint256 toY) = ICorePosition(gameCore).getEntityPosition(to);
-            require(toValid, "Spatial hook: 'to' entity not registered");
+            if (!(toValid)) revert SpatialHookToEntityNotRegistered();
 
-            require(fromX == toX && fromY == toY, "Spatial hook: positions must match");
+            if (!(fromX == toX && fromY == toY)) revert SpatialHookPositionsMustMatch();
         }
         super._update(from, to, ids, values);
     }
