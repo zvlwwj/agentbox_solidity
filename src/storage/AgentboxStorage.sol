@@ -82,7 +82,7 @@ library AgentboxStorage {
     }
 
     struct NPC {
-        uint256 npcType;
+        uint256 skillId;
         Position position;
         bool isTeaching;
         uint256 studentId;

@@ -23,7 +23,7 @@ interface IAgentboxCore {
     function withdrawEth() external;
     function setResourcePoint(uint256 x, uint256 y, uint256 resourceType, uint256 initialStock) external;
     function setSkillBlocks(uint256 skillId, uint256 requiredBlocks) external;
-    function setNPC(uint256 npcId, uint256 x, uint256 y, uint256 npcType) external;
+    function setNPC(uint256 npcId, uint256 x, uint256 y, uint256 skillId) external;
     function setRecipe(uint256 recipeId, uint256[] calldata resourceTypes, uint256[] calldata amounts, uint256 skillId, uint256 requiredBlocks, uint256 outputEqId) external;
     function setEquipmentConfig(uint256 equipmentId, uint256 slot, int256 speedBonus, int256 attackBonus, int256 defenseBonus, int256 maxHpBonus, int256 rangeBonus) external;
 

@@ -14,7 +14,7 @@ contract LearnFacet is AgentboxBase {
         require(!npc.isTeaching, "NPC is busy");
         require(npc.position.x == role.position.x && npc.position.y == role.position.y, "Not at NPC");
         
-        uint256 reqBlocks = state.skillRequiredBlocks[npc.npcType];
+        uint256 reqBlocks = state.skillRequiredBlocks[npc.skillId];
         require(reqBlocks > 0, "Skill not configured");
 
         role.state = AgentboxStorage.RoleState.Learning;
@@ -22,7 +22,7 @@ contract LearnFacet is AgentboxBase {
             startBlock: block.number,
             requiredBlocks: reqBlocks,
             targetId: npcId,
-            skillId: npc.npcType,
+            skillId: npc.skillId,
             isNPC: true,
             teacherWallet: address(0)
         });

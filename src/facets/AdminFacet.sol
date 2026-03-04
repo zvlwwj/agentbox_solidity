@@ -37,12 +37,12 @@ contract AdminFacet is AgentboxBase {
         state.skillRequiredBlocks[skillId] = requiredBlocks;
     }
 
-    function setNPC(uint256 npcId, uint256 x, uint256 y, uint256 npcType) external onlyOwner {
+    function setNPC(uint256 npcId, uint256 x, uint256 y, uint256 skillId) external onlyOwner {
         AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
         AgentboxStorage.NPC storage npc = state.npcs[npcId];
         npc.position.x = x;
         npc.position.y = y;
-        npc.npcType = npcType;
+        npc.skillId = skillId;
     }
 
     function setRecipe(
