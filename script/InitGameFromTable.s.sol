@@ -62,7 +62,7 @@ contract InitGameFromTableScript is Script {
         string memory paramsFile = vm.envOr("INIT_PARAMS_FILE", string("docs/game-init-params.json"));
 
         string memory json = vm.readFile(paramsFile);
-        GlobalConfig memory globalConfig = abi.decode(vm.parseJson(json, ".globalConfig"), (GlobalConfig));
+        GlobalConfig memory globalConfig = _parseGlobalConfig(json);
         ResourcePointConfig[] memory resourcePoints =
             abi.decode(vm.parseJson(json, ".resourcePoints"), (ResourcePointConfig[]));
         SkillConfig[] memory skills = abi.decode(vm.parseJson(json, ".skills"), (SkillConfig[]));
@@ -83,6 +83,20 @@ contract InitGameFromTableScript is Script {
         console.log("Config:", configAddress);
         console.log("Params file:", paramsFile);
         console.log("=======================================");
+    }
+
+    function _parseGlobalConfig(string memory json) internal pure returns (GlobalConfig memory gc) {
+        // Parse each field explicitly to avoid object-key-order ABI decoding mismatch.
+        gc = GlobalConfig({
+            mapWidth: vm.parseJsonUint(json, ".globalConfig.mapWidth"),
+            mapHeight: vm.parseJsonUint(json, ".globalConfig.mapHeight"),
+            mintIntervalBlocks: vm.parseJsonUint(json, ".globalConfig.mintIntervalBlocks"),
+            mintAmount: vm.parseJsonUint(json, ".globalConfig.mintAmount"),
+            stabilizationBlocks: vm.parseJsonUint(json, ".globalConfig.stabilizationBlocks"),
+            craftDurationBlocks: vm.parseJsonUint(json, ".globalConfig.craftDurationBlocks"),
+            halvingIntervalBlocks: vm.parseJsonUint(json, ".globalConfig.halvingIntervalBlocks"),
+            landPrice: vm.parseJsonUint(json, ".globalConfig.landPrice")
+        });
     }
 
     function _parseRecipes(string memory json) internal pure returns (RecipeConfig[] memory recipes) {

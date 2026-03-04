@@ -25,7 +25,7 @@ contract DeployScript is Script {
         
         address vrfCoordinator = vm.envAddress("VRF_COORDINATOR");
         bytes32 keyHash = vm.envBytes32("VRF_KEY_HASH");
-        uint64 subscriptionId = uint64(vm.envUint("VRF_SUB_ID"));
+        uint256 subscriptionId = vm.envUint("VRF_SUB_ID");
 
         vm.startBroadcast(deployerPrivateKey);
 
