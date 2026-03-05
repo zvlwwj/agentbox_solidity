@@ -8,6 +8,7 @@ import "../src/AgentboxRole.sol";
 import "../src/AgentboxRandomizer.sol";
 import "../src/AgentboxEconomy.sol";
 import "../src/AgentboxResource.sol";
+import "../src/AgentboxLand.sol";
 import "../src/proxy/AgentboxDiamond.sol";
 import "../src/facets/AdminFacet.sol";
 import "../src/facets/ActionFacet.sol";
@@ -18,6 +19,7 @@ import "../src/facets/RoleFacet.sol";
 import "../src/facets/SocialFacet.sol";
 import "../src/facets/DiamondLoupeFacet.sol";
 import "../src/interfaces/IAgentboxCore.sol";
+import "../src/Errors.sol";
 import {VRFCoordinatorV2_5Mock} from "@chainlink/contracts/src/v0.8/vrf/mocks/VRFCoordinatorV2_5Mock.sol";
 
 contract AgentboxCoreTest is Test {
@@ -28,13 +30,16 @@ contract AgentboxCoreTest is Test {
     AgentboxRandomizer randomizer;
     AgentboxEconomy economy;
     AgentboxResource resource;
+    AgentboxLand land;
     IAgentboxCore core;
 
     address player1 = address(0x111);
+    address player2 = address(0x222);
     uint256 subId;
 
     function setUp() public {
         vm.deal(player1, 10 ether);
+        vm.deal(player2, 10 ether);
 
         // Deploy config
         config = new AgentboxConfig();
@@ -58,6 +63,7 @@ contract AgentboxCoreTest is Test {
 
         // Deploy Resource
         resource = new AgentboxResource();
+        land = new AgentboxLand();
 
         // Deploy Diamond
         AgentboxDiamond diamond = new AgentboxDiamond();
@@ -141,10 +147,11 @@ contract AgentboxCoreTest is Test {
 
         // Initialize Core via Diamond
         core = IAgentboxCore(address(diamond));
-        core.initialize(address(roleToken), address(config), address(economy), address(randomizer), address(resource));
+        core.initialize(address(roleToken), address(config), address(economy), address(randomizer), address(resource), address(land));
         
         // Set GameCore references
         resource.setGameCore(address(core));
+        land.setGameCore(address(core));
         randomizer.setGameCore(address(core));
         economy.setGameCore(address(core));
     }
@@ -198,5 +205,43 @@ contract AgentboxCoreTest is Test {
         assertTrue(isValid, "Should be valid");
         assertEq(x, 100, "X should be 100");
         assertEq(y, 100, "Y should be 100");
+    }
+
+    function test_LandIsERC721Tradable() public {
+        vm.startPrank(player1);
+        uint256 roleId1 = roleToken.mint();
+        address wallet1 = roleToken.wallets(roleId1);
+        core.registerCharacter{value: 0.01 ether}(roleId1);
+        vm.stopPrank();
+
+        vm.startPrank(player2);
+        uint256 roleId2 = roleToken.mint();
+        address wallet2 = roleToken.wallets(roleId2);
+        core.registerCharacter{value: 0.01 ether}(roleId2);
+        vm.stopPrank();
+
+        vrfMock.fulfillRandomWords(1, address(randomizer));
+        vrfMock.fulfillRandomWords(2, address(randomizer));
+
+        (, uint256 x1, uint256 y1) = core.getEntityPosition(wallet1);
+        uint256 landId = y1 * config.mapWidth() + x1;
+        assertEq(land.ownerOf(landId), wallet1, "Spawn land should mint to role wallet");
+
+        vm.expectRevert(SpatialHookPositionsMustMatch.selector);
+        vm.prank(wallet1);
+        land.safeTransferFrom(wallet1, wallet2, landId);
+
+        vm.startPrank(player2);
+        core.startMove(wallet2, x1, y1);
+        vm.stopPrank();
+        vm.roll(block.number + 100000);
+        vm.startPrank(player2);
+        core.finishMove(wallet2);
+        vm.stopPrank();
+
+        vm.prank(wallet1);
+        land.safeTransferFrom(wallet1, wallet2, landId);
+
+        assertEq(land.ownerOf(landId), wallet2, "Land should transfer when wallets are co-located");
     }
 }

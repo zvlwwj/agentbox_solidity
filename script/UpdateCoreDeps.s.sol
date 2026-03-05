@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Script.sol";
 import "../src/interfaces/IAgentboxCore.sol";
+import "../src/AgentboxLand.sol";
 
 contract UpdateCoreDepsScript is Script {
     function run() external {
@@ -13,6 +14,7 @@ contract UpdateCoreDepsScript is Script {
         address economyAddress = vm.envAddress("ECONOMY_ADDRESS");
         address randomizerAddress = vm.envAddress("RANDOMIZER_ADDRESS");
         address resourceAddress = vm.envAddress("RESOURCE_ADDRESS");
+        address landAddress = vm.envAddress("LAND_ADDRESS");
 
         vm.startBroadcast(deployerPrivateKey);
         IAgentboxCore(coreAddress).initialize(
@@ -20,8 +22,10 @@ contract UpdateCoreDepsScript is Script {
             configAddress,
             economyAddress,
             randomizerAddress,
-            resourceAddress
+            resourceAddress,
+            landAddress
         );
+        AgentboxLand(landAddress).setGameCore(coreAddress);
         vm.stopBroadcast();
 
         console.log("=== Core Dependencies Updated ===");
@@ -31,6 +35,7 @@ contract UpdateCoreDepsScript is Script {
         console.log("Economy:", economyAddress);
         console.log("Randomizer:", randomizerAddress);
         console.log("Resource:", resourceAddress);
+        console.log("Land:", landAddress);
         console.log("=================================");
     }
 }

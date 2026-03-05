@@ -74,3 +74,4 @@ error CraftingNotFinished();
 error NotCrafting();
 error NotAnEquipment();
 error NothingEquippedInSlot();
+error LandBurnDisabled();

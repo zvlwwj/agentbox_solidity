@@ -2,17 +2,140 @@
 pragma solidity ^0.8.20;
 
 interface IAgentboxCore {
+    struct CoreContracts {
+        address roleContract;
+        address configContract;
+        address economyContract;
+        address randomizerContract;
+        address resourceContract;
+        address landContract;
+    }
+
+    struct GlobalConfigSnapshot {
+        uint256 mapWidth;
+        uint256 mapHeight;
+        uint256 mintIntervalBlocks;
+        uint256 mintAmount;
+        uint256 stabilizationBlocks;
+        uint256 craftDurationBlocks;
+        uint256 halvingIntervalBlocks;
+        uint256 landPrice;
+    }
+
+    struct RoleSnapshot {
+        bool exists;
+        uint8 state;
+        uint32 x;
+        uint32 y;
+        uint32 speed;
+        uint32 attack;
+        uint32 defense;
+        uint32 hp;
+        uint32 maxHp;
+        uint32 range;
+        uint32 mp;
+    }
+
+    struct RoleActionSnapshot {
+        uint64 craftingStartBlock;
+        uint64 craftingRequiredBlocks;
+        uint64 craftingRecipeId;
+        uint64 learningStartBlock;
+        uint64 learningRequiredBlocks;
+        uint32 learningTargetId;
+        uint32 learningSkillId;
+        bool learningIsNPC;
+        address learningTeacherWallet;
+        uint64 teachingStartBlock;
+        uint64 teachingRequiredBlocks;
+        uint32 teachingSkillId;
+        address teachingStudentWallet;
+        uint64 movingStartBlock;
+        uint64 movingRequiredBlocks;
+        uint32 movingTargetX;
+        uint32 movingTargetY;
+        uint64 gatheringStartBlock;
+        uint64 gatheringRequiredBlocks;
+        uint64 gatheringTargetLandId;
+        uint64 gatheringAmount;
+    }
+
+    struct LandSnapshot {
+        uint256 landId;
+        uint256 x;
+        uint256 y;
+        address owner;
+        address landContractAddress;
+        bool isResourcePoint;
+        uint64 resourceType;
+        uint64 stock;
+        uint256 groundTokens;
+    }
+
+    struct NpcSnapshot {
+        uint32 skillId;
+        uint32 x;
+        uint32 y;
+        uint64 startBlock;
+        bool isTeaching;
+        address studentWallet;
+    }
+
+    struct RecipeSnapshot {
+        uint256[] requiredResources;
+        uint256[] requiredAmounts;
+        uint64 requiredSkill;
+        uint64 requiredBlocks;
+        uint64 outputEquipmentId;
+    }
+
+    struct EquipmentSnapshot {
+        uint32 slot;
+        int32 speedBonus;
+        int32 attackBonus;
+        int32 defenseBonus;
+        int32 maxHpBonus;
+        int32 rangeBonus;
+    }
+
     function initialize(
         address _roleContract,
         address _configContract,
         address _economyContract,
         address _randomizerContract,
-        address _resourceContract
+        address _resourceContract,
+        address _landContract
     ) external;
 
     function registerCharacter(uint256 roleId) external payable;
     function processSpawn(uint256 roleId, uint256 randomWord) external;
     function getEntityPosition(address entity) external view returns (bool isValid, uint256 x, uint256 y);
+    function getCoreContracts() external view returns (CoreContracts memory snapshot);
+    function getGlobalConfig() external view returns (GlobalConfigSnapshot memory snapshot);
+    function getRoleIdentity(address roleWallet)
+        external
+        view
+        returns (bool isValidRoleWallet, uint256 roleId, address owner, address controller);
+    function getRoleSnapshot(address roleWallet) external view returns (RoleSnapshot memory snapshot);
+    function getRoleActionSnapshot(address roleWallet) external view returns (RoleActionSnapshot memory snapshot);
+    function getRoleSkill(address roleWallet, uint256 skillId) external view returns (bool hasSkill);
+    function getRoleSkills(address roleWallet, uint256[] calldata skillIds) external view returns (bool[] memory skills);
+    function getEquipped(address roleWallet, uint256 slot) external view returns (uint256 equipmentId);
+    function getEquippedBatch(address roleWallet, uint256[] calldata slots) external view returns (uint256[] memory equipped);
+    function getLandSnapshot(uint256 x, uint256 y) external view returns (LandSnapshot memory snapshot);
+    function getLandSnapshotById(uint256 landId) external view returns (LandSnapshot memory snapshot);
+    function getNpcSnapshot(uint256 npcId) external view returns (NpcSnapshot memory snapshot);
+    function getRecipeSnapshot(uint256 recipeId) external view returns (RecipeSnapshot memory snapshot);
+    function getEquipmentSnapshot(uint256 equipmentId) external view returns (EquipmentSnapshot memory snapshot);
+    function getSkillRequiredBlocks(uint256 skillId) external view returns (uint256 requiredBlocks);
+    function getEconomyBalances(address account)
+        external
+        view
+        returns (uint256 totalBalance, uint256 unreliableBalance, uint256 reliableBalance);
+    function canFinishCurrentAction(address roleWallet)
+        external
+        view
+        returns (bool canFinish, uint8 state, uint256 finishBlock);
     
     function move(address roleWallet, int256 dx, int256 dy) external;
     function startMove(address roleWallet, uint256 targetX, uint256 targetY) external;
@@ -49,7 +172,7 @@ interface IAgentboxCore {
 
     function buyLand(address roleWallet, uint256 x, uint256 y) external;
     function sellLand(address roleWallet, uint256 x, uint256 y) external;
-    function setLandContract(uint256 x, uint256 y, address contractAddress) external;
+    function setLandContract(address roleWallet, uint256 x, uint256 y, address contractAddress) external;
 
     function sendMessage(address roleWallet, address toWallet, string calldata message) external;
     function sendGlobalMessage(address roleWallet, string calldata message) external;

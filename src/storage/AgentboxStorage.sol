@@ -114,7 +114,7 @@ library AgentboxStorage {
         address randomizerContract;
         address resourceContract;
         mapping(address => RoleData) roles;
-        mapping(uint256 => address) landOwners;
+        mapping(uint256 => address) landOwners; // legacy slot kept for upgrade-safe storage layout
         mapping(uint256 => address) landContracts; // landId => custom smart contract address
         mapping(address => uint256) contractToLand; // custom smart contract address => landId
         mapping(address => bool) isLandContract; // verify if address is a registered land contract
@@ -124,7 +124,8 @@ library AgentboxStorage {
         mapping(uint256 => uint256) skillRequiredBlocks;
         mapping(uint256 => EquipmentConfig) equipments;
         uint256 totalRegistered;
-        uint256[35] __gap;
+        address landContract;
+        uint256[34] __gap;
     }
 
     bytes32 constant GAME_STORAGE_POSITION = keccak256("agentbox.core.storage");

@@ -5,6 +5,7 @@ import "../Errors.sol";
 
 import "./AgentboxBase.sol";
 import "../AgentboxConfig.sol";
+import "../AgentboxLand.sol";
 
 contract RoleFacet is AgentboxBase {
     function registerCharacter(uint256 roleId) external payable {
@@ -61,13 +62,12 @@ contract RoleFacet is AgentboxBase {
         role.position.y = uint32(startY);
         role.state = AgentboxStorage.RoleState.Idle;
 
-        address owner = roleToken.ownerOf(roleId);
-
         if (state.totalRegistered < 2000) {
             uint256 landId = startY * mapWidth + startX;
-            if (state.landOwners[landId] == address(0)) {
-                state.landOwners[landId] = owner;
-                emit LandBought(landId, owner);
+            AgentboxLand landToken = AgentboxLand(state.landContract);
+            if (!_isLandOwned(landToken, landId)) {
+                landToken.mint(roleWallet, landId);
+                emit LandBought(landId, roleWallet);
             }
         }
 
@@ -91,5 +91,13 @@ contract RoleFacet is AgentboxBase {
         role.position.y = uint32(uint256(keccak256(abi.encode(randomWord, 2))) % mapHeight);
         role.attributes.hp = role.attributes.maxHp;
         role.state = AgentboxStorage.RoleState.Idle;
+    }
+
+    function _isLandOwned(AgentboxLand landToken, uint256 landId) internal view returns (bool) {
+        try landToken.ownerOf(landId) returns (address) {
+            return true;
+        } catch {
+            return false;
+        }
     }
 }

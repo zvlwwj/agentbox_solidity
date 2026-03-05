@@ -12,7 +12,8 @@ contract AdminFacet is AgentboxBase {
         address _configContract,
         address _economyContract,
         address _randomizerContract,
-        address _resourceContract
+        address _resourceContract,
+        address _landContract
     ) external onlyOwner {
         AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
         state.roleContract = _roleContract;
@@ -20,6 +21,7 @@ contract AdminFacet is AgentboxBase {
         state.economyContract = _economyContract;
         state.randomizerContract = _randomizerContract;
         state.resourceContract = _resourceContract;
+        state.landContract = _landContract;
     }
 
     function withdrawEth() external onlyOwner {
