@@ -35,9 +35,11 @@ contract ActionFacet is AgentboxBase {
             AgentboxEconomy economy = AgentboxEconomy(state.economyContract);
             economy.pickupTokens(roleWallet, role.position.x, role.position.y);
         }
+
+        emit RoleMoved(roleWallet, role.position.x, role.position.y);
     }
 
-    function startMove(address roleWallet, uint256 targetX, uint256 targetY) external onlyRoleController(roleWallet) {
+    function startTeleport(address roleWallet, uint256 targetX, uint256 targetY) external onlyRoleController(roleWallet) {
         AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
         AgentboxStorage.RoleData storage role = state.roles[roleWallet];
 
@@ -60,24 +62,24 @@ contract ActionFacet is AgentboxBase {
         
         uint256 requiredBlocks = (distance + role.attributes.speed - 1) / role.attributes.speed;
 
-        role.state = AgentboxStorage.RoleState.Moving;
-        role.moving = AgentboxStorage.MovingState({
+        role.state = AgentboxStorage.RoleState.Teleporting;
+        role.teleport = AgentboxStorage.TeleportState({
             startBlock: uint64(block.number),
             requiredBlocks: uint64(requiredBlocks),
             targetPosition: AgentboxStorage.Position(uint32(targetX), uint32(targetY))
         });
 
-        emit ActionStarted(roleWallet, "Move");
+        emit ActionStarted(roleWallet, "Teleport");
     }
 
-    function finishMove(address roleWallet) external onlyRoleController(roleWallet) {
+    function finishTeleport(address roleWallet) external onlyRoleController(roleWallet) {
         AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
         AgentboxStorage.RoleData storage role = state.roles[roleWallet];
 
-        if (!(role.state == AgentboxStorage.RoleState.Moving)) revert RoleNotMoving();
-        if (!(block.number >= role.moving.startBlock + role.moving.requiredBlocks)) revert MoveNotFinishedYet();
+        if (!(role.state == AgentboxStorage.RoleState.Teleporting)) revert RoleNotTeleporting();
+        if (!(block.number >= role.teleport.startBlock + role.teleport.requiredBlocks)) revert TeleportNotFinishedYet();
 
-        role.position = role.moving.targetPosition;
+        role.position = role.teleport.targetPosition;
         role.state = AgentboxStorage.RoleState.Idle;
 
         if (state.economyContract != address(0)) {
@@ -85,7 +87,7 @@ contract ActionFacet is AgentboxBase {
             economy.pickupTokens(roleWallet, role.position.x, role.position.y);
         }
 
-        emit ActionFinished(roleWallet, "Move");
+        emit ActionFinished(roleWallet, "Teleport");
     }
 
     function attack(address roleWallet, address targetWallet) external onlyRoleController(roleWallet) {
@@ -96,7 +98,72 @@ contract ActionFacet is AgentboxBase {
         if (!(attacker.state == AgentboxStorage.RoleState.Idle)) revert AttackerNotIdle();
         if (!(target.attributes.hp > 0)) revert TargetAlreadyDead();
 
-        AgentboxConfig config = AgentboxConfig(state.configContract);
+        if (!_isTargetInRange(state.configContract, attacker, target)) revert TargetOutOfRange();
+
+        uint256 damage = _calculateDamage(attacker, target);
+
+        if (damage >= target.attributes.hp) {
+            _handleRoleDeath(state, roleWallet, targetWallet, target);
+        } else {
+            target.attributes.hp -= uint32(damage);
+        }
+
+        emit Attacked(roleWallet, targetWallet, damage);
+    }
+
+    function _handleRoleDeath(
+        AgentboxStorage.GameState storage state,
+        address attackerWallet,
+        address targetWallet,
+        AgentboxStorage.RoleData storage target
+    ) internal {
+        target.attributes.hp = 0;
+        _cleanupLinkedRoleStates(state, targetWallet, target);
+        target.state = AgentboxStorage.RoleState.Idle;
+
+        if (state.economyContract != address(0)) {
+            AgentboxEconomy(state.economyContract).transferUnreliableOnDeath(targetWallet, attackerWallet);
+        }
+        if (state.randomizerContract != address(0)) {
+            uint256 targetId = AgentboxRoleWallet(payable(targetWallet)).roleId();
+            (bool success,) = state.randomizerContract.call(abi.encodeWithSignature("requestRespawn(uint256)", targetId));
+            if (!(success)) revert RandomizerRequestFailed();
+        }
+    }
+
+    function _cleanupLinkedRoleStates(
+        AgentboxStorage.GameState storage state,
+        address targetWallet,
+        AgentboxStorage.RoleData storage target
+    ) internal {
+        if (target.state == AgentboxStorage.RoleState.Learning) {
+            if (target.learning.isNPC) {
+                AgentboxStorage.NPC storage npc = state.npcs[target.learning.targetId];
+                if (npc.studentId == uint160(targetWallet)) {
+                    npc.isTeaching = false;
+                }
+            } else {
+                address teacherWallet = target.learning.teacherWallet;
+                AgentboxStorage.RoleData storage teacher = state.roles[teacherWallet];
+                if (teacher.state == AgentboxStorage.RoleState.Teaching && teacher.teaching.studentWallet == targetWallet) {
+                    teacher.state = AgentboxStorage.RoleState.Idle;
+                }
+            }
+        } else if (target.state == AgentboxStorage.RoleState.Teaching) {
+            address studentWallet = target.teaching.studentWallet;
+            AgentboxStorage.RoleData storage student = state.roles[studentWallet];
+            if (student.state == AgentboxStorage.RoleState.Learning && student.learning.teacherWallet == targetWallet) {
+                student.state = AgentboxStorage.RoleState.Idle;
+            }
+        }
+    }
+
+    function _isTargetInRange(
+        address configContract,
+        AgentboxStorage.RoleData storage attacker,
+        AgentboxStorage.RoleData storage target
+    ) internal view returns (bool) {
+        AgentboxConfig config = AgentboxConfig(configContract);
         uint256 mapWidth = config.mapWidth();
         uint256 mapHeight = config.mapHeight();
 
@@ -110,54 +177,15 @@ contract ActionFacet is AgentboxBase {
         dx = dx > mapWidth / 2 ? mapWidth - dx : dx;
         dy = dy > mapHeight / 2 ? mapHeight - dy : dy;
 
-        if (!(dx + dy <= attacker.attributes.range)) revert TargetOutOfRange();
+        return dx + dy <= attacker.attributes.range;
+    }
 
-        uint256 damage = attacker.attributes.attack > target.attributes.defense
+    function _calculateDamage(
+        AgentboxStorage.RoleData storage attacker,
+        AgentboxStorage.RoleData storage target
+    ) internal view returns (uint256) {
+        return attacker.attributes.attack > target.attributes.defense
             ? attacker.attributes.attack - target.attributes.defense
             : 0;
-
-        if (damage >= target.attributes.hp) {
-            target.attributes.hp = 0;
-
-            // Cleanup linked states on death to prevent stuck states
-            if (target.state == AgentboxStorage.RoleState.Learning) {
-                if (target.learning.isNPC) {
-                    AgentboxStorage.NPC storage npc = state.npcs[target.learning.targetId];
-                    if (npc.studentId == uint160(targetWallet)) {
-                        npc.isTeaching = false;
-                    }
-                } else {
-                    address teacherWallet = target.learning.teacherWallet;
-                    AgentboxStorage.RoleData storage teacher = state.roles[teacherWallet];
-                    if (teacher.state == AgentboxStorage.RoleState.Teaching && teacher.teaching.studentWallet == targetWallet) {
-                        teacher.state = AgentboxStorage.RoleState.Idle;
-                    }
-                }
-            } else if (target.state == AgentboxStorage.RoleState.Teaching) {
-                address studentWallet = target.teaching.studentWallet;
-                AgentboxStorage.RoleData storage student = state.roles[studentWallet];
-                if (student.state == AgentboxStorage.RoleState.Learning && student.learning.teacherWallet == targetWallet) {
-                    student.state = AgentboxStorage.RoleState.Idle;
-                }
-            }
-            
-            // Cleanup any other states (gathering, crafting, moving)
-            target.state = AgentboxStorage.RoleState.Idle;
-
-            if (state.economyContract != address(0)) {
-                AgentboxEconomy(state.economyContract).transferUnreliableOnDeath(targetWallet, roleWallet);
-            }
-            if (state.randomizerContract != address(0)) {
-                // Pass roleId for randomizer
-                uint256 targetId = AgentboxRoleWallet(payable(targetWallet)).roleId();
-                (bool success,) =
-                    state.randomizerContract.call(abi.encodeWithSignature("requestRespawn(uint256)", targetId));
-                if (!(success)) revert RandomizerRequestFailed();
-            }
-        } else {
-            target.attributes.hp -= uint32(damage);
-        }
-
-        emit Attacked(roleWallet, targetWallet, damage);
     }
 }

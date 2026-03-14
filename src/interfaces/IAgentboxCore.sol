@@ -36,6 +36,11 @@ interface IAgentboxCore {
         uint32 mp;
     }
 
+    struct RoleProfileSnapshot {
+        string nickname;
+        uint8 gender;
+    }
+
     struct RoleActionSnapshot {
         uint64 craftingStartBlock;
         uint64 craftingRequiredBlocks;
@@ -50,10 +55,10 @@ interface IAgentboxCore {
         uint64 teachingRequiredBlocks;
         uint32 teachingSkillId;
         address teachingStudentWallet;
-        uint64 movingStartBlock;
-        uint64 movingRequiredBlocks;
-        uint32 movingTargetX;
-        uint32 movingTargetY;
+        uint64 teleportStartBlock;
+        uint64 teleportRequiredBlocks;
+        uint32 teleportTargetX;
+        uint32 teleportTargetY;
         uint64 gatheringStartBlock;
         uint64 gatheringRequiredBlocks;
         uint64 gatheringTargetLandId;
@@ -108,6 +113,7 @@ interface IAgentboxCore {
     ) external;
 
     function registerCharacter(uint256 roleId) external payable;
+    function registerCharacter(uint256 roleId, string calldata nickname, uint8 gender) external payable;
     function processSpawn(uint256 roleId, uint256 randomWord) external;
     function getEntityPosition(address entity) external view returns (bool isValid, uint256 x, uint256 y);
     function getCoreContracts() external view returns (CoreContracts memory snapshot);
@@ -117,6 +123,8 @@ interface IAgentboxCore {
         view
         returns (bool isValidRoleWallet, uint256 roleId, address owner, address controller);
     function getRoleSnapshot(address roleWallet) external view returns (RoleSnapshot memory snapshot);
+    function getRoleProfile(address roleWallet) external view returns (RoleProfileSnapshot memory snapshot);
+    function getRoleWalletByNickname(string calldata nickname) external view returns (address roleWallet);
     function getRoleActionSnapshot(address roleWallet) external view returns (RoleActionSnapshot memory snapshot);
     function getRoleSkill(address roleWallet, uint256 skillId) external view returns (bool hasSkill);
     function getRoleSkills(address roleWallet, uint256[] calldata skillIds) external view returns (bool[] memory skills);
@@ -138,8 +146,8 @@ interface IAgentboxCore {
         returns (bool canFinish, uint8 state, uint256 finishBlock);
     
     function move(address roleWallet, int256 dx, int256 dy) external;
-    function startMove(address roleWallet, uint256 targetX, uint256 targetY) external;
-    function finishMove(address roleWallet) external;
+    function startTeleport(address roleWallet, uint256 targetX, uint256 targetY) external;
+    function finishTeleport(address roleWallet) external;
     function attack(address roleWallet, address targetWallet) external;
     function processRespawn(uint256 roleId, uint256 randomWord) external;
 
@@ -150,10 +158,34 @@ interface IAgentboxCore {
     function setRecipe(uint256 recipeId, uint256[] calldata resourceTypes, uint256[] calldata amounts, uint256 skillId, uint256 requiredBlocks, uint256 outputEqId) external;
     function setEquipmentConfig(uint256 equipmentId, uint256 slot, int256 speedBonus, int256 attackBonus, int256 defenseBonus, int256 maxHpBonus, int256 rangeBonus) external;
 
+    event CharacterProfileSet(address indexed roleWallet, string nickname, uint8 gender);
     event ActionStarted(address indexed roleWallet, string actionType);
     event ActionFinished(address indexed roleWallet, string actionType);
+    event RoleMoved(address indexed roleWallet, uint256 x, uint256 y);
     event Attacked(address indexed attacker, address indexed target, uint256 damage);
     event Equipped(address indexed roleWallet, uint256 slot, uint256 equipmentId);
+    event ResourcePointSet(
+        uint256 indexed landId, uint256 indexed x, uint256 indexed y, uint256 resourceType, uint256 initialStock
+    );
+    event SkillBlocksSet(uint256 indexed skillId, uint256 requiredBlocks);
+    event NPCSet(uint256 indexed npcId, uint256 indexed x, uint256 indexed y, uint256 skillId);
+    event RecipeSet(
+        uint256 indexed recipeId,
+        uint256[] resourceTypes,
+        uint256[] amounts,
+        uint256 skillId,
+        uint256 requiredBlocks,
+        uint256 outputEqId
+    );
+    event EquipmentConfigSet(
+        uint256 indexed equipmentId,
+        uint256 indexed slot,
+        int256 speedBonus,
+        int256 attackBonus,
+        int256 defenseBonus,
+        int256 maxHpBonus,
+        int256 rangeBonus
+    );
 
     function gather(address roleWallet) external;
     function startGather(address roleWallet, uint256 amount) external;
@@ -167,6 +199,7 @@ interface IAgentboxCore {
     function requestLearningFromPlayer(address roleWallet, address teacherWallet, uint256 skillId) external;
     function acceptTeaching(address roleWallet, address studentWallet) external;
     function cancelLearning(address roleWallet) external;
+    function cancelTeaching(address roleWallet) external;
     function finishLearning(address roleWallet) external;
     function processNPCRefresh(uint256 npcId, uint256 randomWord) external;
 

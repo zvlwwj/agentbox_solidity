@@ -8,7 +8,18 @@ import "../AgentboxConfig.sol";
 import "../AgentboxLand.sol";
 
 contract RoleFacet is AgentboxBase {
+    uint256 private constant MIN_NICKNAME_LENGTH = 3;
+    uint256 private constant MAX_NICKNAME_LENGTH = 24;
+
     function registerCharacter(uint256 roleId) external payable {
+        _registerCharacter(roleId, "", 0, false);
+    }
+
+    function registerCharacter(uint256 roleId, string calldata nickname, uint8 gender) external payable {
+        _registerCharacter(roleId, nickname, gender, true);
+    }
+
+    function _registerCharacter(uint256 roleId, string memory nickname, uint8 gender, bool withProfile) internal {
         if (!(msg.value == 0.01 ether)) revert Requires001EthToRegister();
 
         AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
@@ -21,6 +32,11 @@ contract RoleFacet is AgentboxBase {
         AgentboxStorage.RoleData storage role = state.roles[roleWallet];
         if (!(role.attributes.maxHp == 0 && role.state != AgentboxStorage.RoleState.PendingSpawn)) revert AlreadyRegisteredOrPending();
 
+        if (withProfile) {
+            _setRoleProfile(state, roleWallet, role, nickname, gender);
+            emit CharacterProfileSet(roleWallet, nickname, gender);
+        }
+
         role.state = AgentboxStorage.RoleState.PendingSpawn;
 
         if (state.randomizerContract != address(0)) {
@@ -30,6 +46,26 @@ contract RoleFacet is AgentboxBase {
             // Fallback for testing without randomizer (though not recommended for prod)
             _finalizeSpawn(roleId, uint256(keccak256(abi.encodePacked(block.timestamp, msg.sender))));
         }
+    }
+
+    function _setRoleProfile(
+        AgentboxStorage.GameState storage state,
+        address roleWallet,
+        AgentboxStorage.RoleData storage role,
+        string memory nickname,
+        uint8 gender
+    ) internal {
+        uint256 nicknameLength = bytes(nickname).length;
+        if (nicknameLength < MIN_NICKNAME_LENGTH || nicknameLength > MAX_NICKNAME_LENGTH) revert InvalidNicknameLength();
+        if (gender > 2) revert InvalidGender();
+
+        bytes32 nicknameHash = keccak256(bytes(nickname));
+        address existingOwner = state.nicknameOwners[nicknameHash];
+        if (existingOwner != address(0) && existingOwner != roleWallet) revert NicknameAlreadyTaken();
+
+        state.nicknameOwners[nicknameHash] = roleWallet;
+        role.nickname = nickname;
+        role.gender = gender;
     }
 
     function processSpawn(uint256 roleId, uint256 randomWord) external onlyRandomizer {

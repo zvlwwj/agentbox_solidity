@@ -41,6 +41,11 @@ contract ReadFacet is AgentboxBase {
         uint32 mp;
     }
 
+    struct RoleProfileSnapshot {
+        string nickname;
+        uint8 gender;
+    }
+
     struct RoleActionSnapshot {
         uint64 craftingStartBlock;
         uint64 craftingRequiredBlocks;
@@ -55,10 +60,10 @@ contract ReadFacet is AgentboxBase {
         uint64 teachingRequiredBlocks;
         uint32 teachingSkillId;
         address teachingStudentWallet;
-        uint64 movingStartBlock;
-        uint64 movingRequiredBlocks;
-        uint32 movingTargetX;
-        uint32 movingTargetY;
+        uint64 teleportStartBlock;
+        uint64 teleportRequiredBlocks;
+        uint32 teleportTargetX;
+        uint32 teleportTargetY;
         uint64 gatheringStartBlock;
         uint64 gatheringRequiredBlocks;
         uint64 gatheringTargetLandId;
@@ -165,6 +170,15 @@ contract ReadFacet is AgentboxBase {
         });
     }
 
+    function getRoleProfile(address roleWallet) external view returns (RoleProfileSnapshot memory snapshot) {
+        AgentboxStorage.RoleData storage role = AgentboxStorage.getStorage().roles[roleWallet];
+        snapshot = RoleProfileSnapshot({nickname: role.nickname, gender: role.gender});
+    }
+
+    function getRoleWalletByNickname(string calldata nickname) external view returns (address roleWallet) {
+        roleWallet = AgentboxStorage.getStorage().nicknameOwners[keccak256(bytes(nickname))];
+    }
+
     function getRoleActionSnapshot(address roleWallet) external view returns (RoleActionSnapshot memory snapshot) {
         AgentboxStorage.RoleData storage role = AgentboxStorage.getStorage().roles[roleWallet];
         snapshot = RoleActionSnapshot({
@@ -181,10 +195,10 @@ contract ReadFacet is AgentboxBase {
             teachingRequiredBlocks: role.teaching.requiredBlocks,
             teachingSkillId: role.teaching.skillId,
             teachingStudentWallet: role.teaching.studentWallet,
-            movingStartBlock: role.moving.startBlock,
-            movingRequiredBlocks: role.moving.requiredBlocks,
-            movingTargetX: role.moving.targetPosition.x,
-            movingTargetY: role.moving.targetPosition.y,
+            teleportStartBlock: role.teleport.startBlock,
+            teleportRequiredBlocks: role.teleport.requiredBlocks,
+            teleportTargetX: role.teleport.targetPosition.x,
+            teleportTargetY: role.teleport.targetPosition.y,
             gatheringStartBlock: role.gathering.startBlock,
             gatheringRequiredBlocks: role.gathering.requiredBlocks,
             gatheringTargetLandId: role.gathering.targetLandId,
@@ -320,8 +334,8 @@ contract ReadFacet is AgentboxBase {
         AgentboxStorage.RoleData storage role = AgentboxStorage.getStorage().roles[roleWallet];
         state = uint8(role.state);
 
-        if (role.state == AgentboxStorage.RoleState.Moving) {
-            finishBlock = role.moving.startBlock + role.moving.requiredBlocks;
+        if (role.state == AgentboxStorage.RoleState.Teleporting) {
+            finishBlock = role.teleport.startBlock + role.teleport.requiredBlocks;
             canFinish = block.number >= finishBlock;
         } else if (role.state == AgentboxStorage.RoleState.Gathering) {
             finishBlock = role.gathering.startBlock + role.gathering.requiredBlocks;

@@ -15,8 +15,10 @@ abstract contract AgentboxBase {
     event MessageSent(address indexed fromWallet, address indexed toWallet, string message);
     event GlobalMessageSent(address indexed fromWallet, string message);
 
+    event CharacterProfileSet(address indexed roleWallet, string nickname, uint8 gender);
     event ActionStarted(address indexed roleWallet, string actionType);
     event ActionFinished(address indexed roleWallet, string actionType);
+    event RoleMoved(address indexed roleWallet, uint256 x, uint256 y);
     event Attacked(address indexed attacker, address indexed target, uint256 damage);
     event Equipped(address indexed roleWallet, uint256 slot, uint256 equipmentId);
 

@@ -8,7 +8,7 @@ library AgentboxStorage {
         Teaching,
         Crafting,
         Gathering,
-        Moving,
+        Teleporting,
         PendingSpawn
     }
 
@@ -49,7 +49,7 @@ library AgentboxStorage {
         address studentWallet;
     }
 
-    struct MovingState {
+    struct TeleportState {
         uint64 startBlock;
         uint64 requiredBlocks;
         Position targetPosition;
@@ -68,11 +68,13 @@ library AgentboxStorage {
         RoleState state;
         CraftingState crafting;
         LearningState learning;
-        MovingState moving;
+        TeleportState teleport;
         GatheringState gathering;
         TeachingState teaching;
         mapping(uint256 => bool) skills;
         mapping(uint256 => uint256) equippedItems; // slot => equipmentId
+        string nickname;
+        uint8 gender;
     }
 
     struct ResourcePoint {
@@ -125,7 +127,8 @@ library AgentboxStorage {
         mapping(uint256 => EquipmentConfig) equipments;
         uint256 totalRegistered;
         address landContract;
-        uint256[34] __gap;
+        mapping(bytes32 => address) nicknameOwners;
+        uint256[33] __gap;
     }
 
     bytes32 constant GAME_STORAGE_POSITION = keccak256("agentbox.core.storage");

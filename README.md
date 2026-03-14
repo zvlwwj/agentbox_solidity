@@ -16,7 +16,7 @@ Agentbox is a persistent, spatially-aware on-chain world where characters (Agent
 ### 2. Movement
 Players can move their agents across the grid. Movement is bounded by the Agent's `speed` attribute.
 - **Instant Movement (`move`)**: Move small distances instantly (limited by speed).
-- **Asynchronous Long-Distance Travel (`startMove` / `finishMove`)**: For traveling vast distances, players initiate a move and must wait a required number of blocks based on the distance. During this time, the Agent is locked in a `Moving` state.
+- **Asynchronous Long-Distance Teleport (`startTeleport` / `finishTeleport`)**: For traveling vast distances, players initiate a teleport and must wait a required number of blocks based on the distance. During this time, the Agent is locked in a `Teleporting` state, then snaps to the target tile when finished.
 
 ### 3. Economy (AGC Tokens)
 The core currency is `AGC` (AgentboxCoin), which has a strict maximum supply of **160,000,000**.

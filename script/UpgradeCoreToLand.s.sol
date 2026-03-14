@@ -78,34 +78,37 @@ contract UpgradeCoreToLandScript is Script {
             functionSelectors: mapRemoveSelectors
         });
 
-        bytes4[] memory roleReplaceSelectors = new bytes4[](3);
-        roleReplaceSelectors[0] = RoleFacet.registerCharacter.selector;
-        roleReplaceSelectors[1] = RoleFacet.processSpawn.selector;
-        roleReplaceSelectors[2] = RoleFacet.processRespawn.selector;
+        bytes4[] memory roleReplaceSelectors = new bytes4[](4);
+        roleReplaceSelectors[0] = bytes4(keccak256("registerCharacter(uint256)"));
+        roleReplaceSelectors[1] = bytes4(keccak256("registerCharacter(uint256,string,uint8)"));
+        roleReplaceSelectors[2] = RoleFacet.processSpawn.selector;
+        roleReplaceSelectors[3] = RoleFacet.processRespawn.selector;
         cuts[4] = AgentboxDiamond.FacetCut({
             facetAddress: address(roleFacet),
             action: AgentboxDiamond.FacetCutAction.Replace,
             functionSelectors: roleReplaceSelectors
         });
 
-        bytes4[] memory readReplaceSelectors = new bytes4[](17);
+        bytes4[] memory readReplaceSelectors = new bytes4[](19);
         readReplaceSelectors[0] = ReadFacet.getCoreContracts.selector;
         readReplaceSelectors[1] = ReadFacet.getGlobalConfig.selector;
         readReplaceSelectors[2] = ReadFacet.getRoleIdentity.selector;
         readReplaceSelectors[3] = ReadFacet.getRoleSnapshot.selector;
-        readReplaceSelectors[4] = ReadFacet.getRoleActionSnapshot.selector;
-        readReplaceSelectors[5] = ReadFacet.getRoleSkill.selector;
-        readReplaceSelectors[6] = ReadFacet.getRoleSkills.selector;
-        readReplaceSelectors[7] = ReadFacet.getEquipped.selector;
-        readReplaceSelectors[8] = ReadFacet.getEquippedBatch.selector;
-        readReplaceSelectors[9] = ReadFacet.getLandSnapshot.selector;
-        readReplaceSelectors[10] = ReadFacet.getLandSnapshotById.selector;
-        readReplaceSelectors[11] = ReadFacet.getNpcSnapshot.selector;
-        readReplaceSelectors[12] = ReadFacet.getRecipeSnapshot.selector;
-        readReplaceSelectors[13] = ReadFacet.getEquipmentSnapshot.selector;
-        readReplaceSelectors[14] = ReadFacet.getSkillRequiredBlocks.selector;
-        readReplaceSelectors[15] = ReadFacet.getEconomyBalances.selector;
-        readReplaceSelectors[16] = ReadFacet.canFinishCurrentAction.selector;
+        readReplaceSelectors[4] = ReadFacet.getRoleProfile.selector;
+        readReplaceSelectors[5] = ReadFacet.getRoleWalletByNickname.selector;
+        readReplaceSelectors[6] = ReadFacet.getRoleActionSnapshot.selector;
+        readReplaceSelectors[7] = ReadFacet.getRoleSkill.selector;
+        readReplaceSelectors[8] = ReadFacet.getRoleSkills.selector;
+        readReplaceSelectors[9] = ReadFacet.getEquipped.selector;
+        readReplaceSelectors[10] = ReadFacet.getEquippedBatch.selector;
+        readReplaceSelectors[11] = ReadFacet.getLandSnapshot.selector;
+        readReplaceSelectors[12] = ReadFacet.getLandSnapshotById.selector;
+        readReplaceSelectors[13] = ReadFacet.getNpcSnapshot.selector;
+        readReplaceSelectors[14] = ReadFacet.getRecipeSnapshot.selector;
+        readReplaceSelectors[15] = ReadFacet.getEquipmentSnapshot.selector;
+        readReplaceSelectors[16] = ReadFacet.getSkillRequiredBlocks.selector;
+        readReplaceSelectors[17] = ReadFacet.getEconomyBalances.selector;
+        readReplaceSelectors[18] = ReadFacet.canFinishCurrentAction.selector;
         cuts[5] = AgentboxDiamond.FacetCut({
             facetAddress: address(readFacet),
             action: AgentboxDiamond.FacetCutAction.Replace,

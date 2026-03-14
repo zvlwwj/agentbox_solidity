@@ -68,8 +68,8 @@ contract DeployScript is Script {
 
         bytes4[] memory actionSelectors = new bytes4[](4);
         actionSelectors[0] = ActionFacet.move.selector;
-        actionSelectors[1] = ActionFacet.startMove.selector;
-        actionSelectors[2] = ActionFacet.finishMove.selector;
+        actionSelectors[1] = ActionFacet.startTeleport.selector;
+        actionSelectors[2] = ActionFacet.finishTeleport.selector;
         actionSelectors[3] = ActionFacet.attack.selector;
         cuts[1] = AgentboxDiamond.FacetCut({facetAddress: address(actionFacet), action: AgentboxDiamond.FacetCutAction.Add, functionSelectors: actionSelectors});
 
@@ -99,30 +99,33 @@ contract DeployScript is Script {
         mapSelectors[3] = MapFacet.setLandContract.selector;
         cuts[4] = AgentboxDiamond.FacetCut({facetAddress: address(mapFacet), action: AgentboxDiamond.FacetCutAction.Add, functionSelectors: mapSelectors});
 
-        bytes4[] memory readSelectors = new bytes4[](17);
+        bytes4[] memory readSelectors = new bytes4[](19);
         readSelectors[0] = ReadFacet.getCoreContracts.selector;
         readSelectors[1] = ReadFacet.getGlobalConfig.selector;
         readSelectors[2] = ReadFacet.getRoleIdentity.selector;
         readSelectors[3] = ReadFacet.getRoleSnapshot.selector;
-        readSelectors[4] = ReadFacet.getRoleActionSnapshot.selector;
-        readSelectors[5] = ReadFacet.getRoleSkill.selector;
-        readSelectors[6] = ReadFacet.getRoleSkills.selector;
-        readSelectors[7] = ReadFacet.getEquipped.selector;
-        readSelectors[8] = ReadFacet.getEquippedBatch.selector;
-        readSelectors[9] = ReadFacet.getLandSnapshot.selector;
-        readSelectors[10] = ReadFacet.getLandSnapshotById.selector;
-        readSelectors[11] = ReadFacet.getNpcSnapshot.selector;
-        readSelectors[12] = ReadFacet.getRecipeSnapshot.selector;
-        readSelectors[13] = ReadFacet.getEquipmentSnapshot.selector;
-        readSelectors[14] = ReadFacet.getSkillRequiredBlocks.selector;
-        readSelectors[15] = ReadFacet.getEconomyBalances.selector;
-        readSelectors[16] = ReadFacet.canFinishCurrentAction.selector;
+        readSelectors[4] = ReadFacet.getRoleProfile.selector;
+        readSelectors[5] = ReadFacet.getRoleWalletByNickname.selector;
+        readSelectors[6] = ReadFacet.getRoleActionSnapshot.selector;
+        readSelectors[7] = ReadFacet.getRoleSkill.selector;
+        readSelectors[8] = ReadFacet.getRoleSkills.selector;
+        readSelectors[9] = ReadFacet.getEquipped.selector;
+        readSelectors[10] = ReadFacet.getEquippedBatch.selector;
+        readSelectors[11] = ReadFacet.getLandSnapshot.selector;
+        readSelectors[12] = ReadFacet.getLandSnapshotById.selector;
+        readSelectors[13] = ReadFacet.getNpcSnapshot.selector;
+        readSelectors[14] = ReadFacet.getRecipeSnapshot.selector;
+        readSelectors[15] = ReadFacet.getEquipmentSnapshot.selector;
+        readSelectors[16] = ReadFacet.getSkillRequiredBlocks.selector;
+        readSelectors[17] = ReadFacet.getEconomyBalances.selector;
+        readSelectors[18] = ReadFacet.canFinishCurrentAction.selector;
         cuts[5] = AgentboxDiamond.FacetCut({facetAddress: address(readFacet), action: AgentboxDiamond.FacetCutAction.Add, functionSelectors: readSelectors});
 
-        bytes4[] memory roleSelectors = new bytes4[](3);
-        roleSelectors[0] = RoleFacet.registerCharacter.selector;
-        roleSelectors[1] = RoleFacet.processSpawn.selector;
-        roleSelectors[2] = RoleFacet.processRespawn.selector;
+        bytes4[] memory roleSelectors = new bytes4[](4);
+        roleSelectors[0] = bytes4(keccak256("registerCharacter(uint256)"));
+        roleSelectors[1] = bytes4(keccak256("registerCharacter(uint256,string,uint8)"));
+        roleSelectors[2] = RoleFacet.processSpawn.selector;
+        roleSelectors[3] = RoleFacet.processRespawn.selector;
         cuts[6] = AgentboxDiamond.FacetCut({facetAddress: address(roleFacet), action: AgentboxDiamond.FacetCutAction.Add, functionSelectors: roleSelectors});
 
         bytes4[] memory socialSelectors = new bytes4[](2);
