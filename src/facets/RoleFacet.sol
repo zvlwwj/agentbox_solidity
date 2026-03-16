@@ -127,6 +127,8 @@ contract RoleFacet is AgentboxBase {
         role.position.y = uint32(uint256(keccak256(abi.encode(randomWord, 2))) % mapHeight);
         role.attributes.hp = role.attributes.maxHp;
         role.state = AgentboxStorage.RoleState.Idle;
+
+        emit RoleRespawned(roleWallet, role.position.x, role.position.y, role.attributes.hp);
     }
 
     function _isLandOwned(AgentboxLand landToken, uint256 landId) internal view returns (bool) {

@@ -4,6 +4,17 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract AgentboxConfig is Ownable {
+    event GlobalConfigUpdated(
+        uint256 mapWidth,
+        uint256 mapHeight,
+        uint256 mintIntervalBlocks,
+        uint256 mintAmount,
+        uint256 stabilizationBlocks,
+        uint256 craftDurationBlocks,
+        uint256 halvingIntervalBlocks,
+        uint256 landPrice
+    );
+
     uint256 public mapWidth = 10000;
     uint256 public mapHeight = 10000;
     uint256 public mintIntervalBlocks = 100;
@@ -18,29 +29,49 @@ contract AgentboxConfig is Ownable {
     function setMapDimensions(uint256 width, uint256 height) external onlyOwner {
         mapWidth = width;
         mapHeight = height;
+        _emitGlobalConfigUpdated();
     }
 
     function setMintIntervalBlocks(uint256 interval) external onlyOwner {
         mintIntervalBlocks = interval;
+        _emitGlobalConfigUpdated();
     }
 
     function setMintAmount(uint256 amount) external onlyOwner {
         mintAmount = amount;
+        _emitGlobalConfigUpdated();
     }
 
     function setStabilizationBlocks(uint256 blocks) external onlyOwner {
         stabilizationBlocks = blocks;
+        _emitGlobalConfigUpdated();
     }
 
     function setCraftDurationBlocks(uint256 blocks) external onlyOwner {
         craftDurationBlocks = blocks;
+        _emitGlobalConfigUpdated();
     }
 
     function setHalvingIntervalBlocks(uint256 blocks) external onlyOwner {
         halvingIntervalBlocks = blocks;
+        _emitGlobalConfigUpdated();
     }
 
     function setLandPrice(uint256 price) external onlyOwner {
         landPrice = price;
+        _emitGlobalConfigUpdated();
+    }
+
+    function _emitGlobalConfigUpdated() internal {
+        emit GlobalConfigUpdated(
+            mapWidth,
+            mapHeight,
+            mintIntervalBlocks,
+            mintAmount,
+            stabilizationBlocks,
+            craftDurationBlocks,
+            halvingIntervalBlocks,
+            landPrice
+        );
     }
 }

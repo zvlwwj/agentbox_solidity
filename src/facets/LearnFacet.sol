@@ -7,6 +7,8 @@ import "./AgentboxBase.sol";
 import "../AgentboxConfig.sol";
 
 contract LearnFacet is AgentboxBase {
+    event NPCRefreshed(uint256 indexed npcId, uint256 indexed x, uint256 indexed y, uint256 skillId);
+
     function startLearning(address roleWallet, uint256 npcId) external onlyRoleController(roleWallet) {
         AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
         AgentboxStorage.RoleData storage role = state.roles[roleWallet];
@@ -35,6 +37,7 @@ contract LearnFacet is AgentboxBase {
         npc.studentId = uint160(roleWallet);
         npc.startBlock = uint64(block.number);
 
+        emit NPCTeachingStateChanged(npcId, true, roleWallet, block.number);
         emit ActionStarted(roleWallet, "Learn");
     }
 
@@ -138,6 +141,10 @@ contract LearnFacet is AgentboxBase {
         if (role.learning.isNPC) {
             AgentboxStorage.NPC storage npc = state.npcs[role.learning.targetId];
             npc.isTeaching = false;
+            npc.studentId = 0;
+            npc.startBlock = 0;
+
+            emit NPCTeachingStateChanged(role.learning.targetId, false, address(0), 0);
 
             if (state.randomizerContract != address(0)) {
                 (bool success,) = state.randomizerContract.call(
@@ -153,6 +160,13 @@ contract LearnFacet is AgentboxBase {
             }
         }
 
+        emit SkillLearned(
+            roleWallet,
+            role.learning.skillId,
+            role.learning.isNPC,
+            role.learning.targetId,
+            role.learning.teacherWallet
+        );
         emit ActionFinished(roleWallet, "Learn");
     }
 
@@ -163,5 +177,7 @@ contract LearnFacet is AgentboxBase {
 
         npc.position.x = uint32(uint256(keccak256(abi.encode(randomWord, 1))) % config.mapWidth());
         npc.position.y = uint32(uint256(keccak256(abi.encode(randomWord, 2))) % config.mapHeight());
+
+        emit NPCRefreshed(npcId, npc.position.x, npc.position.y, npc.skillId);
     }
 }

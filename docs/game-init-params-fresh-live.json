@@ -1,0 +1,58 @@
+{
+  "globalConfig": {
+    "mapWidth": 10000,
+    "mapHeight": 10000,
+    "mintIntervalBlocks": 100,
+    "mintAmount": 50000000000000000000,
+    "stabilizationBlocks": 4000,
+    "craftDurationBlocks": 3600,
+    "halvingIntervalBlocks": 6048000,
+    "landPrice": 100000000000000000000
+  },
+  "resourcePoints": [],
+  "skills": [
+    { "skillId": 1, "requiredBlocks": 100 },
+    { "skillId": 2, "requiredBlocks": 100 },
+    { "skillId": 3, "requiredBlocks": 100 }
+  ],
+  "npcs": [],
+  "recipeCount": 2,
+  "recipes": [
+    {
+      "recipeId": 1,
+      "resourceTypes": [1, 2],
+      "amounts": [10, 5],
+      "skillId": 1,
+      "requiredBlocks": 300,
+      "outputEqId": 1001
+    },
+    {
+      "recipeId": 2,
+      "resourceTypes": [2, 3],
+      "amounts": [12, 6],
+      "skillId": 2,
+      "requiredBlocks": 500,
+      "outputEqId": 1002
+    }
+  ],
+  "equipments": [
+    {
+      "equipmentId": 1001,
+      "slot": 1,
+      "speedBonus": 1,
+      "attackBonus": 2,
+      "defenseBonus": 0,
+      "maxHpBonus": 10,
+      "rangeBonus": 0
+    },
+    {
+      "equipmentId": 1002,
+      "slot": 2,
+      "speedBonus": 0,
+      "attackBonus": 3,
+      "defenseBonus": 1,
+      "maxHpBonus": 20,
+      "rangeBonus": 1
+    }
+  ]
+}

@@ -12,11 +12,13 @@ interface ICorePosition {
 
 contract AgentboxResource is ERC1155, Ownable {
     address public gameCore;
+    event GameCoreSet(address indexed gameCore);
 
     constructor() ERC1155("") Ownable(msg.sender) {}
 
     function setGameCore(address _core) external onlyOwner {
         gameCore = _core;
+        emit GameCoreSet(_core);
     }
 
     modifier onlyCore() {

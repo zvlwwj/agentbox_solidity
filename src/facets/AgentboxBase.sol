@@ -9,6 +9,14 @@ import "../AgentboxRoleWallet.sol";
 
 abstract contract AgentboxBase {
     event CharacterRegistered(uint256 indexed roleId, address indexed roleWallet);
+    event CoreContractsUpdated(
+        address roleContract,
+        address configContract,
+        address economyContract,
+        address randomizerContract,
+        address resourceContract,
+        address landContract
+    );
     event LandBought(uint256 indexed landId, address indexed owner);
     event LandSold(uint256 indexed landId, address indexed owner);
     event LandContractSet(uint256 indexed landId, address indexed contractAddress);
@@ -21,6 +29,28 @@ abstract contract AgentboxBase {
     event RoleMoved(address indexed roleWallet, uint256 x, uint256 y);
     event Attacked(address indexed attacker, address indexed target, uint256 damage);
     event Equipped(address indexed roleWallet, uint256 slot, uint256 equipmentId);
+    event SkillLearned(
+        address indexed roleWallet,
+        uint256 indexed skillId,
+        bool learnedFromNpc,
+        uint256 targetId,
+        address teacherWallet
+    );
+    event NPCTeachingStateChanged(
+        uint256 indexed npcId,
+        bool isTeaching,
+        address studentWallet,
+        uint256 startBlock
+    );
+    event ResourcePointUpdated(
+        uint256 indexed landId,
+        uint256 indexed x,
+        uint256 indexed y,
+        uint256 resourceType,
+        uint256 stock,
+        bool isResourcePoint
+    );
+    event RoleRespawned(address indexed roleWallet, uint256 x, uint256 y, uint256 hp);
 
     modifier onlyRoleController(address roleWallet) {
         AgentboxRole roleToken = AgentboxRole(AgentboxStorage.getStorage().roleContract);

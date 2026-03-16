@@ -45,6 +45,15 @@ contract AdminFacet is AgentboxBase {
         state.randomizerContract = _randomizerContract;
         state.resourceContract = _resourceContract;
         state.landContract = _landContract;
+
+        emit CoreContractsUpdated(
+            _roleContract,
+            _configContract,
+            _economyContract,
+            _randomizerContract,
+            _resourceContract,
+            _landContract
+        );
     }
 
     function withdrawEth() external onlyOwner {

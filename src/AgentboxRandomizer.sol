@@ -31,6 +31,16 @@ contract AgentboxRandomizer is VRFConsumerBaseV2Plus {
     }
 
     mapping(uint256 => RequestInfo) public requests;
+    event GameCoreSet(address indexed gameCore);
+    event RandomRequestCreated(uint256 indexed requestId, uint8 indexed requestType, uint256 indexed targetId, uint256 requestBlock);
+    event RandomRequestRetried(
+        uint256 indexed oldRequestId,
+        uint256 indexed newRequestId,
+        uint8 requestType,
+        uint256 targetId,
+        uint256 requestBlock
+    );
+    event RandomRequestFulfilled(uint256 indexed requestId, uint8 requestType, uint256 targetId, uint256 randomWord);
 
     constructor(address vrfCoordinator, bytes32 keyHash, uint256 subscriptionId)
         VRFConsumerBaseV2Plus(vrfCoordinator)
@@ -41,6 +51,7 @@ contract AgentboxRandomizer is VRFConsumerBaseV2Plus {
 
     function setGameCore(address _core) external onlyOwner {
         gameCore = _core;
+        emit GameCoreSet(_core);
     }
 
     modifier onlyCore() {
@@ -60,6 +71,7 @@ contract AgentboxRandomizer is VRFConsumerBaseV2Plus {
             })
         );
         requests[requestId] = RequestInfo({reqType: RequestType.Respawn, targetId: roleId, requestBlock: block.number});
+        emit RandomRequestCreated(requestId, uint8(RequestType.Respawn), roleId, block.number);
     }
 
     function requestSpawn(uint256 roleId) external onlyCore returns (uint256 requestId) {
@@ -74,6 +86,7 @@ contract AgentboxRandomizer is VRFConsumerBaseV2Plus {
             })
         );
         requests[requestId] = RequestInfo({reqType: RequestType.Spawn, targetId: roleId, requestBlock: block.number});
+        emit RandomRequestCreated(requestId, uint8(RequestType.Spawn), roleId, block.number);
     }
 
     function requestNPCRefresh(uint256 npcId) external onlyCore returns (uint256 requestId) {
@@ -88,6 +101,7 @@ contract AgentboxRandomizer is VRFConsumerBaseV2Plus {
             })
         );
         requests[requestId] = RequestInfo({reqType: RequestType.NPCRefresh, targetId: npcId, requestBlock: block.number});
+        emit RandomRequestCreated(requestId, uint8(RequestType.NPCRefresh), npcId, block.number);
     }
 
     function fulfillRandomWords(uint256 requestId, uint256[] calldata randomWords) internal override {
@@ -99,6 +113,8 @@ contract AgentboxRandomizer is VRFConsumerBaseV2Plus {
         } else if (req.reqType == RequestType.Spawn) {
             IAgentboxCore(gameCore).processSpawn(req.targetId, randomWords[0]);
         }
+
+        emit RandomRequestFulfilled(requestId, uint8(req.reqType), req.targetId, randomWords[0]);
 
         delete requests[requestId];
     }
@@ -124,6 +140,8 @@ contract AgentboxRandomizer is VRFConsumerBaseV2Plus {
             targetId: req.targetId,
             requestBlock: block.number
         });
+
+        emit RandomRequestRetried(oldRequestId, newRequestId, uint8(req.reqType), req.targetId, block.number);
 
         delete requests[oldRequestId];
     }

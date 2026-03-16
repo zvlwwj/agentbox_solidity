@@ -38,6 +38,9 @@ contract AgentboxEconomy is ERC20, VRFConsumerBaseV2Plus {
     event TokensDropped(uint256 indexed landId, uint256 amount);
     event TokensPickedUp(address indexed account, uint256 indexed landId, uint256 amount);
     event TokensStabilized(address indexed account, uint256 amount);
+    event GameCoreSet(address indexed gameCore);
+    event UnreliableBalanceTransferred(address indexed fromAccount, address indexed toAccount, uint256 amount);
+    event ReliableBalanceBurned(address indexed account, uint256 amount);
 
     constructor(address _config, address vrfCoordinator, bytes32 keyHash, uint256 subscriptionId)
         ERC20("AgentboxCoin", "AGC")
@@ -51,6 +54,7 @@ contract AgentboxEconomy is ERC20, VRFConsumerBaseV2Plus {
 
     function setGameCore(address _core) external onlyOwner {
         gameCore = _core;
+        emit GameCoreSet(_core);
     }
 
     modifier onlyCore() {
@@ -170,6 +174,7 @@ contract AgentboxEconomy is ERC20, VRFConsumerBaseV2Plus {
             _isBypassingReliableCheck = true;
             _transfer(fromAccount, toAccount, total);
             _isBypassingReliableCheck = false;
+            emit UnreliableBalanceTransferred(fromAccount, toAccount, total);
         }
     }
 
@@ -183,6 +188,7 @@ contract AgentboxEconomy is ERC20, VRFConsumerBaseV2Plus {
         _isBypassingReliableCheck = true;
         _burn(account, amount);
         _isBypassingReliableCheck = false;
+        emit ReliableBalanceBurned(account, amount);
     }
 
     function _update(address from, address to, uint256 value) internal override {

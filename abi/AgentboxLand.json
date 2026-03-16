@@ -388,6 +388,19 @@
   },
   {
     "type": "event",
+    "name": "GameCoreSet",
+    "inputs": [
+      {
+        "name": "gameCore",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "OwnershipTransferred",
     "inputs": [
       {

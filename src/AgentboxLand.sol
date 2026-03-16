@@ -12,6 +12,7 @@ interface ICoreLandPosition {
 
 contract AgentboxLand is ERC721, Ownable {
     address public gameCore;
+    event GameCoreSet(address indexed gameCore);
 
     constructor() ERC721("AgentboxLand", "ALAND") Ownable(msg.sender) {}
 
@@ -22,6 +23,7 @@ contract AgentboxLand is ERC721, Ownable {
 
     function setGameCore(address _core) external onlyOwner {
         gameCore = _core;
+        emit GameCoreSet(_core);
     }
 
     function mint(address to, uint256 landId) external onlyCore {

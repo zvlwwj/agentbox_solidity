@@ -141,12 +141,16 @@ contract ActionFacet is AgentboxBase {
                 AgentboxStorage.NPC storage npc = state.npcs[target.learning.targetId];
                 if (npc.studentId == uint160(targetWallet)) {
                     npc.isTeaching = false;
+                    npc.studentId = 0;
+                    npc.startBlock = 0;
+                    emit NPCTeachingStateChanged(target.learning.targetId, false, address(0), 0);
                 }
             } else {
                 address teacherWallet = target.learning.teacherWallet;
                 AgentboxStorage.RoleData storage teacher = state.roles[teacherWallet];
                 if (teacher.state == AgentboxStorage.RoleState.Teaching && teacher.teaching.studentWallet == targetWallet) {
                     teacher.state = AgentboxStorage.RoleState.Idle;
+                    emit ActionFinished(teacherWallet, "TeachPlayer");
                 }
             }
         } else if (target.state == AgentboxStorage.RoleState.Teaching) {
@@ -154,6 +158,7 @@ contract ActionFacet is AgentboxBase {
             AgentboxStorage.RoleData storage student = state.roles[studentWallet];
             if (student.state == AgentboxStorage.RoleState.Learning && student.learning.teacherWallet == targetWallet) {
                 student.state = AgentboxStorage.RoleState.Idle;
+                emit ActionFinished(studentWallet, "CancelLearning");
             }
         }
     }

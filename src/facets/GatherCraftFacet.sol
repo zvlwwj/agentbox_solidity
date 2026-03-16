@@ -36,6 +36,8 @@ contract GatherCraftFacet is AgentboxBase {
         if (rp.stock == 0) {
             rp.isResourcePoint = false;
         }
+
+        emit ResourcePointUpdated(landId, role.position.x, role.position.y, rp.resourceType, rp.stock, rp.isResourcePoint);
     }
 
     function startGather(address roleWallet, uint256 amount) external onlyRoleController(roleWallet) {
@@ -58,6 +60,8 @@ contract GatherCraftFacet is AgentboxBase {
         if (rp.stock == 0) {
             rp.isResourcePoint = false;
         }
+
+        emit ResourcePointUpdated(landId, role.position.x, role.position.y, rp.resourceType, rp.stock, rp.isResourcePoint);
 
         role.state = AgentboxStorage.RoleState.Gathering;
         role.gathering = AgentboxStorage.GatheringState({

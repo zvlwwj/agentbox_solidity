@@ -158,17 +158,48 @@ interface IAgentboxCore {
     function setRecipe(uint256 recipeId, uint256[] calldata resourceTypes, uint256[] calldata amounts, uint256 skillId, uint256 requiredBlocks, uint256 outputEqId) external;
     function setEquipmentConfig(uint256 equipmentId, uint256 slot, int256 speedBonus, int256 attackBonus, int256 defenseBonus, int256 maxHpBonus, int256 rangeBonus) external;
 
+    event CoreContractsUpdated(
+        address roleContract,
+        address configContract,
+        address economyContract,
+        address randomizerContract,
+        address resourceContract,
+        address landContract
+    );
     event CharacterProfileSet(address indexed roleWallet, string nickname, uint8 gender);
     event ActionStarted(address indexed roleWallet, string actionType);
     event ActionFinished(address indexed roleWallet, string actionType);
     event RoleMoved(address indexed roleWallet, uint256 x, uint256 y);
     event Attacked(address indexed attacker, address indexed target, uint256 damage);
     event Equipped(address indexed roleWallet, uint256 slot, uint256 equipmentId);
+    event SkillLearned(
+        address indexed roleWallet,
+        uint256 indexed skillId,
+        bool learnedFromNpc,
+        uint256 targetId,
+        address teacherWallet
+    );
+    event NPCTeachingStateChanged(
+        uint256 indexed npcId,
+        bool isTeaching,
+        address studentWallet,
+        uint256 startBlock
+    );
+    event ResourcePointUpdated(
+        uint256 indexed landId,
+        uint256 indexed x,
+        uint256 indexed y,
+        uint256 resourceType,
+        uint256 stock,
+        bool isResourcePoint
+    );
+    event RoleRespawned(address indexed roleWallet, uint256 x, uint256 y, uint256 hp);
     event ResourcePointSet(
         uint256 indexed landId, uint256 indexed x, uint256 indexed y, uint256 resourceType, uint256 initialStock
     );
     event SkillBlocksSet(uint256 indexed skillId, uint256 requiredBlocks);
     event NPCSet(uint256 indexed npcId, uint256 indexed x, uint256 indexed y, uint256 skillId);
+    event NPCRefreshed(uint256 indexed npcId, uint256 indexed x, uint256 indexed y, uint256 skillId);
     event RecipeSet(
         uint256 indexed recipeId,
         uint256[] resourceTypes,
