@@ -24,10 +24,17 @@ contract AgentboxRandomizer is VRFConsumerBaseV2Plus {
         Spawn
     }
 
+    enum RequestStatus {
+        None,
+        Pending,
+        Retried
+    }
+
     struct RequestInfo {
         RequestType reqType;
         uint256 targetId;
         uint256 requestBlock;
+        RequestStatus status;
     }
 
     mapping(uint256 => RequestInfo) public requests;
@@ -41,6 +48,7 @@ contract AgentboxRandomizer is VRFConsumerBaseV2Plus {
         uint256 requestBlock
     );
     event RandomRequestFulfilled(uint256 indexed requestId, uint8 requestType, uint256 targetId, uint256 randomWord);
+    event RandomRequestIgnored(uint256 indexed requestId, uint8 requestType, uint256 targetId, uint8 status);
 
     constructor(address vrfCoordinator, bytes32 keyHash, uint256 subscriptionId)
         VRFConsumerBaseV2Plus(vrfCoordinator)
@@ -60,52 +68,27 @@ contract AgentboxRandomizer is VRFConsumerBaseV2Plus {
     }
 
     function requestRespawn(uint256 roleId) external onlyCore returns (uint256 requestId) {
-        requestId = s_vrfCoordinator.requestRandomWords(
-            VRFV2PlusClient.RandomWordsRequest({
-                keyHash: s_keyHash,
-                subId: s_subscriptionId,
-                requestConfirmations: requestConfirmations,
-                callbackGasLimit: callbackGasLimit,
-                numWords: 1,
-                extraArgs: VRFV2PlusClient._argsToBytes(VRFV2PlusClient.ExtraArgsV1({nativePayment: false}))
-            })
-        );
-        requests[requestId] = RequestInfo({reqType: RequestType.Respawn, targetId: roleId, requestBlock: block.number});
-        emit RandomRequestCreated(requestId, uint8(RequestType.Respawn), roleId, block.number);
+        requestId = _createRequest(RequestType.Respawn, roleId);
     }
 
     function requestSpawn(uint256 roleId) external onlyCore returns (uint256 requestId) {
-        requestId = s_vrfCoordinator.requestRandomWords(
-            VRFV2PlusClient.RandomWordsRequest({
-                keyHash: s_keyHash,
-                subId: s_subscriptionId,
-                requestConfirmations: requestConfirmations,
-                callbackGasLimit: callbackGasLimit,
-                numWords: 1,
-                extraArgs: VRFV2PlusClient._argsToBytes(VRFV2PlusClient.ExtraArgsV1({nativePayment: false}))
-            })
-        );
-        requests[requestId] = RequestInfo({reqType: RequestType.Spawn, targetId: roleId, requestBlock: block.number});
-        emit RandomRequestCreated(requestId, uint8(RequestType.Spawn), roleId, block.number);
+        requestId = _createRequest(RequestType.Spawn, roleId);
     }
 
     function requestNPCRefresh(uint256 npcId) external onlyCore returns (uint256 requestId) {
-        requestId = s_vrfCoordinator.requestRandomWords(
-            VRFV2PlusClient.RandomWordsRequest({
-                keyHash: s_keyHash,
-                subId: s_subscriptionId,
-                requestConfirmations: requestConfirmations,
-                callbackGasLimit: callbackGasLimit,
-                numWords: 1,
-                extraArgs: VRFV2PlusClient._argsToBytes(VRFV2PlusClient.ExtraArgsV1({nativePayment: false}))
-            })
-        );
-        requests[requestId] = RequestInfo({reqType: RequestType.NPCRefresh, targetId: npcId, requestBlock: block.number});
-        emit RandomRequestCreated(requestId, uint8(RequestType.NPCRefresh), npcId, block.number);
+        requestId = _createRequest(RequestType.NPCRefresh, npcId);
     }
 
     function fulfillRandomWords(uint256 requestId, uint256[] calldata randomWords) internal override {
         RequestInfo memory req = requests[requestId];
+        if (req.status != RequestStatus.Pending) {
+            if (req.status != RequestStatus.None) {
+                emit RandomRequestIgnored(requestId, uint8(req.reqType), req.targetId, uint8(req.status));
+                delete requests[requestId];
+            }
+            return;
+        }
+
         if (req.reqType == RequestType.Respawn) {
             IAgentboxCore(gameCore).processRespawn(req.targetId, randomWords[0]);
         } else if (req.reqType == RequestType.NPCRefresh) {
@@ -120,11 +103,19 @@ contract AgentboxRandomizer is VRFConsumerBaseV2Plus {
     }
 
     function retryRequest(uint256 oldRequestId) external returns (uint256 newRequestId) {
-        RequestInfo memory req = requests[oldRequestId];
-        if (!(req.requestBlock > 0)) revert RequestDoesNotExist();
-        if (!(block.number >= req.requestBlock + 100)) revert TooEarlyToRetry();
+        RequestInfo storage oldRequest = requests[oldRequestId];
+        if (!(oldRequest.requestBlock > 0)) revert RequestDoesNotExist();
+        if (!(oldRequest.status == RequestStatus.Pending)) revert RequestDoesNotExist();
+        if (!(block.number >= oldRequest.requestBlock + 100)) revert TooEarlyToRetry();
 
-        newRequestId = s_vrfCoordinator.requestRandomWords(
+        RequestInfo memory req = oldRequest;
+        oldRequest.status = RequestStatus.Retried;
+        newRequestId = _createRequest(req.reqType, req.targetId);
+        emit RandomRequestRetried(oldRequestId, newRequestId, uint8(req.reqType), req.targetId, block.number);
+    }
+
+    function _createRequest(RequestType reqType, uint256 targetId) internal returns (uint256 requestId) {
+        requestId = s_vrfCoordinator.requestRandomWords(
             VRFV2PlusClient.RandomWordsRequest({
                 keyHash: s_keyHash,
                 subId: s_subscriptionId,
@@ -134,15 +125,8 @@ contract AgentboxRandomizer is VRFConsumerBaseV2Plus {
                 extraArgs: VRFV2PlusClient._argsToBytes(VRFV2PlusClient.ExtraArgsV1({nativePayment: false}))
             })
         );
-
-        requests[newRequestId] = RequestInfo({
-            reqType: req.reqType,
-            targetId: req.targetId,
-            requestBlock: block.number
-        });
-
-        emit RandomRequestRetried(oldRequestId, newRequestId, uint8(req.reqType), req.targetId, block.number);
-
-        delete requests[oldRequestId];
+        requests[requestId] =
+            RequestInfo({reqType: reqType, targetId: targetId, requestBlock: block.number, status: RequestStatus.Pending});
+        emit RandomRequestCreated(requestId, uint8(reqType), targetId, block.number);
     }
 }

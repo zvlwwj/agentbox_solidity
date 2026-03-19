@@ -67,6 +67,7 @@ contract ReadFacet is AgentboxBase {
         uint64 gatheringStartBlock;
         uint64 gatheringRequiredBlocks;
         uint64 gatheringTargetLandId;
+        uint32 gatheringResourceType;
         uint64 gatheringAmount;
     }
 
@@ -202,6 +203,7 @@ contract ReadFacet is AgentboxBase {
             gatheringStartBlock: role.gathering.startBlock,
             gatheringRequiredBlocks: role.gathering.requiredBlocks,
             gatheringTargetLandId: role.gathering.targetLandId,
+            gatheringResourceType: role.gathering.resourceType,
             gatheringAmount: role.gathering.amount
         });
     }

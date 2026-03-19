@@ -35,8 +35,14 @@ contract AgentboxDiamond {
                 if (cut.action == FacetCutAction.Add || cut.action == FacetCutAction.Replace) {
                     require(facetAddress != address(0), "Facet cannot be zero");
                     address oldFacetAddress = ds.selectorToFacetAndPosition[selector].facetAddress;
-                    
-                    if (cut.action == FacetCutAction.Replace && oldFacetAddress != address(0)) {
+
+                    if (cut.action == FacetCutAction.Add) {
+                        require(oldFacetAddress == address(0), "Selector already exists");
+                    }
+
+                    if (cut.action == FacetCutAction.Replace) {
+                        require(oldFacetAddress != address(0), "Selector not found");
+                        require(oldFacetAddress != facetAddress, "Replace facet matches old");
                         _removeSelector(ds, oldFacetAddress, selector);
                     }
                     

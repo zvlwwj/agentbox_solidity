@@ -13,29 +13,12 @@ contract GatherCraftFacet is AgentboxBase {
         AgentboxStorage.RoleData storage role = state.roles[roleWallet];
         if (!(role.state == AgentboxStorage.RoleState.Idle)) revert RoleNotIdle();
 
-        AgentboxConfig config = AgentboxConfig(state.configContract);
-        uint256 landId = role.position.y * config.mapWidth() + role.position.x;
-        AgentboxStorage.ResourcePoint storage rp = state.resourcePoints[landId];
-
-        if (!(rp.isResourcePoint)) revert NotAResourcePoint();
-        if (!(rp.stock > 0)) revert ResourceDepleted();
-        if (!(role.skills[rp.resourceType])) revert MissingRequiredSkill();
+        (uint256 landId, AgentboxStorage.ResourcePoint storage rp) = _getGatherableResourcePoint(state, role);
 
         uint256 gatherAmount = 1;
-
-        if (rp.stock < gatherAmount) {
-            gatherAmount = rp.stock;
-        }
-
         rp.stock -= uint64(gatherAmount);
-        
-        if (state.resourceContract != address(0)) {
-            AgentboxResource(state.resourceContract).mint(roleWallet, rp.resourceType, gatherAmount, "");
-        }
-
-        if (rp.stock == 0) {
-            rp.isResourcePoint = false;
-        }
+        _finalizeResourcePointUpdate(rp);
+        _mintResourceIfConfigured(state.resourceContract, roleWallet, rp.resourceType, gatherAmount);
 
         emit ResourcePointUpdated(landId, role.position.x, role.position.y, rp.resourceType, rp.stock, rp.isResourcePoint);
     }
@@ -45,21 +28,14 @@ contract GatherCraftFacet is AgentboxBase {
         AgentboxStorage.RoleData storage role = state.roles[roleWallet];
         if (!(role.state == AgentboxStorage.RoleState.Idle)) revert RoleNotIdle();
 
-        AgentboxConfig config = AgentboxConfig(state.configContract);
-        uint256 landId = role.position.y * config.mapWidth() + role.position.x;
-        AgentboxStorage.ResourcePoint storage rp = state.resourcePoints[landId];
-
-        if (!(rp.isResourcePoint)) revert NotAResourcePoint();
+        (uint256 landId, AgentboxStorage.ResourcePoint storage rp) = _getGatherableResourcePoint(state, role);
         if (!(rp.stock >= amount)) revert NotEnoughResourceStock();
-        if (!(role.skills[rp.resourceType])) revert MissingRequiredSkill();
 
         uint256 blocksPerResource = 2; // Fixed blocks per resource
         uint256 requiredBlocks = amount * blocksPerResource;
 
         rp.stock -= uint64(amount);
-        if (rp.stock == 0) {
-            rp.isResourcePoint = false;
-        }
+        _finalizeResourcePointUpdate(rp);
 
         emit ResourcePointUpdated(landId, role.position.x, role.position.y, rp.resourceType, rp.stock, rp.isResourcePoint);
 
@@ -68,6 +44,7 @@ contract GatherCraftFacet is AgentboxBase {
             startBlock: uint64(block.number),
             requiredBlocks: uint64(requiredBlocks),
             targetLandId: uint64(landId),
+            resourceType: uint32(rp.resourceType),
             amount: uint64(amount)
         });
 
@@ -81,14 +58,11 @@ contract GatherCraftFacet is AgentboxBase {
         if (!(role.state == AgentboxStorage.RoleState.Gathering)) revert RoleNotGathering();
         if (!(block.number >= role.gathering.startBlock + role.gathering.requiredBlocks)) revert GatheringNotFinishedYet();
 
-        uint256 targetLandId = role.gathering.targetLandId;
-        AgentboxStorage.ResourcePoint storage rp = state.resourcePoints[targetLandId];
+        uint256 resourceType = role.gathering.resourceType;
 
         role.state = AgentboxStorage.RoleState.Idle;
 
-        if (state.resourceContract != address(0)) {
-            AgentboxResource(state.resourceContract).mint(roleWallet, rp.resourceType, role.gathering.amount, "");
-        }
+        _mintResourceIfConfigured(state.resourceContract, roleWallet, resourceType, role.gathering.amount);
 
         emit ActionFinished(roleWallet, "Gather");
     }
@@ -208,6 +182,32 @@ contract GatherCraftFacet is AgentboxBase {
             return a > absB ? a - absB : 0;
         } else {
             return a + uint256(b);
+        }
+    }
+
+    function _getGatherableResourcePoint(
+        AgentboxStorage.GameState storage state,
+        AgentboxStorage.RoleData storage role
+    ) internal view returns (uint256 landId, AgentboxStorage.ResourcePoint storage rp) {
+        AgentboxConfig config = AgentboxConfig(state.configContract);
+        landId = role.position.y * config.mapWidth() + role.position.x;
+        rp = state.resourcePoints[landId];
+        if (!(rp.isResourcePoint)) revert NotAResourcePoint();
+        if (!(rp.stock > 0)) revert ResourceDepleted();
+        if (!(role.skills[rp.resourceType])) revert MissingRequiredSkill();
+    }
+
+    function _finalizeResourcePointUpdate(AgentboxStorage.ResourcePoint storage rp) internal {
+        if (rp.stock == 0) {
+            rp.isResourcePoint = false;
+        }
+    }
+
+    function _mintResourceIfConfigured(address resourceContract, address roleWallet, uint256 resourceType, uint256 amount)
+        internal
+    {
+        if (resourceContract != address(0)) {
+            AgentboxResource(resourceContract).mint(roleWallet, resourceType, amount, "");
         }
     }
 }

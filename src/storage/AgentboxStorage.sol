@@ -59,6 +59,7 @@ library AgentboxStorage {
         uint64 startBlock;
         uint64 requiredBlocks;
         uint64 targetLandId;
+        uint32 resourceType;
         uint64 amount;
     }
 

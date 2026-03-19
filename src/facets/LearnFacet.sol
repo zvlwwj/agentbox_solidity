@@ -9,6 +9,48 @@ import "../AgentboxConfig.sol";
 contract LearnFacet is AgentboxBase {
     event NPCRefreshed(uint256 indexed npcId, uint256 indexed x, uint256 indexed y, uint256 skillId);
 
+    function _completeLearning(
+        AgentboxStorage.GameState storage state,
+        address roleWallet,
+        bool resolveTeacher
+    ) internal {
+        AgentboxStorage.RoleData storage role = state.roles[roleWallet];
+
+        role.state = AgentboxStorage.RoleState.Idle;
+        role.skills[role.learning.skillId] = true;
+
+        if (role.learning.isNPC) {
+            AgentboxStorage.NPC storage npc = state.npcs[role.learning.targetId];
+            npc.isTeaching = false;
+            npc.studentId = 0;
+            npc.startBlock = 0;
+
+            emit NPCTeachingStateChanged(role.learning.targetId, false, address(0), 0);
+
+            if (state.randomizerContract != address(0)) {
+                (bool success,) = state.randomizerContract.call(
+                    abi.encodeWithSignature("requestNPCRefresh(uint256)", role.learning.targetId)
+                );
+                if (!(success)) revert RandomizerRequestFailed();
+            }
+        } else if (resolveTeacher) {
+            AgentboxStorage.RoleData storage teacher = state.roles[role.learning.teacherWallet];
+            if (teacher.state == AgentboxStorage.RoleState.Teaching && teacher.teaching.studentWallet == roleWallet) {
+                teacher.state = AgentboxStorage.RoleState.Idle;
+                emit ActionFinished(role.learning.teacherWallet, "TeachPlayer");
+            }
+        }
+
+        emit SkillLearned(
+            roleWallet,
+            role.learning.skillId,
+            role.learning.isNPC,
+            role.learning.targetId,
+            role.learning.teacherWallet
+        );
+        emit ActionFinished(roleWallet, "Learn");
+    }
+
     function startLearning(address roleWallet, uint256 npcId) external onlyRoleController(roleWallet) {
         AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
         AgentboxStorage.RoleData storage role = state.roles[roleWallet];
@@ -121,8 +163,15 @@ contract LearnFacet is AgentboxBase {
         teacher.state = AgentboxStorage.RoleState.Idle;
 
         if (student.state == AgentboxStorage.RoleState.Learning && student.learning.teacherWallet == roleWallet) {
-            student.state = AgentboxStorage.RoleState.Idle;
-            emit ActionFinished(studentWallet, "CancelLearning");
+            if (
+                student.learning.startBlock != 0
+                    && block.number >= student.learning.startBlock + student.learning.requiredBlocks
+            ) {
+                _completeLearning(state, studentWallet, false);
+            } else {
+                student.state = AgentboxStorage.RoleState.Idle;
+                emit ActionFinished(studentWallet, "CancelLearning");
+            }
         }
 
         emit ActionFinished(roleWallet, "CancelTeaching");
@@ -134,40 +183,7 @@ contract LearnFacet is AgentboxBase {
         if (!(role.state == AgentboxStorage.RoleState.Learning)) revert NotLearning();
         if (!(role.learning.startBlock != 0)) revert LearningNotAcceptedYet();
         if (!(block.number >= role.learning.startBlock + role.learning.requiredBlocks)) revert LearningNotFinished();
-
-        role.state = AgentboxStorage.RoleState.Idle;
-        role.skills[role.learning.skillId] = true;
-
-        if (role.learning.isNPC) {
-            AgentboxStorage.NPC storage npc = state.npcs[role.learning.targetId];
-            npc.isTeaching = false;
-            npc.studentId = 0;
-            npc.startBlock = 0;
-
-            emit NPCTeachingStateChanged(role.learning.targetId, false, address(0), 0);
-
-            if (state.randomizerContract != address(0)) {
-                (bool success,) = state.randomizerContract.call(
-                    abi.encodeWithSignature("requestNPCRefresh(uint256)", role.learning.targetId)
-                );
-                if (!(success)) revert RandomizerRequestFailed();
-            }
-        } else {
-            AgentboxStorage.RoleData storage teacher = state.roles[role.learning.teacherWallet];
-            if (teacher.state == AgentboxStorage.RoleState.Teaching && teacher.teaching.studentWallet == roleWallet) {
-                teacher.state = AgentboxStorage.RoleState.Idle;
-                emit ActionFinished(role.learning.teacherWallet, "TeachPlayer");
-            }
-        }
-
-        emit SkillLearned(
-            roleWallet,
-            role.learning.skillId,
-            role.learning.isNPC,
-            role.learning.targetId,
-            role.learning.teacherWallet
-        );
-        emit ActionFinished(roleWallet, "Learn");
+        _completeLearning(state, roleWallet, true);
     }
 
     function processNPCRefresh(uint256 npcId, uint256 randomWord) external onlyRandomizer {

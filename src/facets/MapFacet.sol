@@ -49,15 +49,10 @@ contract MapFacet is AgentboxBase {
         emit LandBought(landId, roleWallet);
     }
 
-    function sellLand(address roleWallet, uint256 x, uint256 y) external onlyRoleController(roleWallet) {
-        AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
-        AgentboxConfig config = AgentboxConfig(state.configContract);
-        uint256 landId = y * config.mapWidth() + x;
-        AgentboxLand landToken = AgentboxLand(state.landContract);
-        if (!(landToken.ownerOf(landId) == roleWallet)) revert NotTheLandOwner();
-
-        AgentboxStorage.RoleData storage role = state.roles[roleWallet];
-        if (!(role.position.x == x && role.position.y == y)) revert MustBeOnLandToSell();
+    function sellLand(address roleWallet, uint256 x, uint256 y) external view onlyRoleController(roleWallet) {
+        roleWallet;
+        x;
+        y;
         revert LandBurnDisabled();
     }
 
