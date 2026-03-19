@@ -78,3 +78,5 @@ error LandBurnDisabled();
 error InvalidGender();
 error InvalidNicknameLength();
 error NicknameAlreadyTaken();
+error InvalidMapDimensions();
+error ValueOutOfRange();

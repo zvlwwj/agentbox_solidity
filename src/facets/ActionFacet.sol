@@ -8,28 +8,23 @@ import "../AgentboxConfig.sol";
 import "../AgentboxEconomy.sol";
 
 contract ActionFacet is AgentboxBase {
-    function move(address roleWallet, int256 dx, int256 dy) external onlyRoleController(roleWallet) {
+    function moveTo(address roleWallet, uint256 targetX, uint256 targetY) external onlyRoleController(roleWallet) {
         AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
         AgentboxStorage.RoleData storage role = state.roles[roleWallet];
 
         if (!(role.state == AgentboxStorage.RoleState.Idle)) revert RoleNotIdle();
 
-        uint256 absDx = dx >= 0 ? uint256(dx) : uint256(-dx);
-        uint256 absDy = dy >= 0 ? uint256(dy) : uint256(-dy);
-        if (!(absDx + absDy <= role.attributes.speed)) revert MoveExceedsSpeed();
-
         AgentboxConfig config = AgentboxConfig(state.configContract);
         uint256 mapWidth = config.mapWidth();
         uint256 mapHeight = config.mapHeight();
+        if (!(targetX < mapWidth && targetY < mapHeight)) revert TargetOutOfBounds();
 
-        int256 newX = (int256(uint256(role.position.x)) + dx) % int256(mapWidth);
-        if (newX < 0) newX += int256(mapWidth);
+        uint256 distance =
+            _wrappedManhattanDistance(role.position.x, role.position.y, uint32(targetX), uint32(targetY), mapWidth, mapHeight);
+        if (!(distance <= role.attributes.speed)) revert MoveExceedsSpeed();
 
-        int256 newY = (int256(uint256(role.position.y)) + dy) % int256(mapHeight);
-        if (newY < 0) newY += int256(mapHeight);
-
-        role.position.x = uint32(uint256(newX));
-        role.position.y = uint32(uint256(newY));
+        role.position.x = uint32(targetX);
+        role.position.y = uint32(targetY);
 
         if (state.economyContract != address(0)) {
             AgentboxEconomy economy = AgentboxEconomy(state.economyContract);
@@ -50,13 +45,9 @@ contract ActionFacet is AgentboxBase {
         uint256 mapHeight = config.mapHeight();
         if (!(targetX < mapWidth && targetY < mapHeight)) revert TargetOutOfBounds();
 
-        uint256 dx = targetX > role.position.x ? targetX - role.position.x : role.position.x - targetX;
-        uint256 dy = targetY > role.position.y ? targetY - role.position.y : role.position.y - targetY;
-        
-        dx = dx > mapWidth / 2 ? mapWidth - dx : dx;
-        dy = dy > mapHeight / 2 ? mapHeight - dy : dy;
-
-        uint256 distance = dx + dy;
+        uint256 distance = _wrappedManhattanDistance(
+            role.position.x, role.position.y, uint32(targetX), uint32(targetY), mapWidth, mapHeight
+        );
         
         if (!(distance > 0)) revert AlreadyAtTarget();
         
@@ -169,20 +160,9 @@ contract ActionFacet is AgentboxBase {
         AgentboxStorage.RoleData storage target
     ) internal view returns (bool) {
         AgentboxConfig config = AgentboxConfig(configContract);
-        uint256 mapWidth = config.mapWidth();
-        uint256 mapHeight = config.mapHeight();
-
-        uint256 dx = attacker.position.x > target.position.x
-            ? attacker.position.x - target.position.x
-            : target.position.x - attacker.position.x;
-        uint256 dy = attacker.position.y > target.position.y
-            ? attacker.position.y - target.position.y
-            : target.position.y - attacker.position.y;
-
-        dx = dx > mapWidth / 2 ? mapWidth - dx : dx;
-        dy = dy > mapHeight / 2 ? mapHeight - dy : dy;
-
-        return dx + dy <= attacker.attributes.range;
+        return _wrappedManhattanDistance(
+            attacker.position.x, attacker.position.y, target.position.x, target.position.y, config.mapWidth(), config.mapHeight()
+        ) <= attacker.attributes.range;
     }
 
     function _calculateDamage(
@@ -192,5 +172,23 @@ contract ActionFacet is AgentboxBase {
         return attacker.attributes.attack > target.attributes.defense
             ? attacker.attributes.attack - target.attributes.defense
             : 0;
+    }
+
+    function _wrappedManhattanDistance(
+        uint32 fromX,
+        uint32 fromY,
+        uint32 toX,
+        uint32 toY,
+        uint256 mapWidth,
+        uint256 mapHeight
+    ) internal pure returns (uint256) {
+        return _wrappedAxisDistance(fromX, toX, mapWidth) + _wrappedAxisDistance(fromY, toY, mapHeight);
+    }
+
+    function _wrappedAxisDistance(uint32 from, uint32 to, uint256 size) internal pure returns (uint256 distance) {
+        distance = from > to ? from - to : to - from;
+        if (distance > size / 2) {
+            distance = size - distance;
+        }
     }
 }

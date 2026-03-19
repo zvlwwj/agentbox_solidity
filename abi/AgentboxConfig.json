@@ -313,6 +313,11 @@
   },
   {
     "type": "error",
+    "name": "InvalidMapDimensions",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "OwnableInvalidOwner",
     "inputs": [
       {

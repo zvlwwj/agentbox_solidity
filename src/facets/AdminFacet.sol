@@ -64,6 +64,9 @@ contract AdminFacet is AgentboxBase {
     function setResourcePoint(uint256 x, uint256 y, uint256 resourceType, uint256 initialStock) external onlyOwner {
         AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
         AgentboxConfig config = AgentboxConfig(state.configContract);
+        if (!(x < config.mapWidth() && y < config.mapHeight())) revert TargetOutOfBounds();
+        _requireUint64(resourceType);
+        _requireUint64(initialStock);
         uint256 landId = y * config.mapWidth() + x;
         state.resourcePoints[landId] =
             AgentboxStorage.ResourcePoint({resourceType: uint64(resourceType), stock: uint64(initialStock), isResourcePoint: true});
@@ -78,6 +81,11 @@ contract AdminFacet is AgentboxBase {
 
     function setNPC(uint256 npcId, uint256 x, uint256 y, uint256 skillId) external onlyOwner {
         AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
+        AgentboxConfig config = AgentboxConfig(state.configContract);
+        if (!(x < config.mapWidth() && y < config.mapHeight())) revert TargetOutOfBounds();
+        _requireUint32(x);
+        _requireUint32(y);
+        _requireUint32(skillId);
         AgentboxStorage.NPC storage npc = state.npcs[npcId];
         npc.position.x = uint32(x);
         npc.position.y = uint32(y);
@@ -95,6 +103,9 @@ contract AdminFacet is AgentboxBase {
     ) external onlyOwner {
         if (!(resourceTypes.length == amounts.length)) revert MismatchedArrays();
         AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
+        _requireUint64(skillId);
+        _requireUint64(requiredBlocks);
+        _requireUint64(outputEqId);
         state.recipes[recipeId] = AgentboxStorage.Recipe({
             requiredResources: resourceTypes,
             requiredAmounts: amounts,
@@ -115,6 +126,12 @@ contract AdminFacet is AgentboxBase {
         int256 rangeBonus
     ) external onlyOwner {
         AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
+        _requireUint32(slot);
+        _requireInt32(speedBonus);
+        _requireInt32(attackBonus);
+        _requireInt32(defenseBonus);
+        _requireInt32(maxHpBonus);
+        _requireInt32(rangeBonus);
         state.equipments[equipmentId] = AgentboxStorage.EquipmentConfig({
             slot: uint32(slot),
             speedBonus: int32(speedBonus),
@@ -124,5 +141,17 @@ contract AdminFacet is AgentboxBase {
             rangeBonus: int32(rangeBonus)
         });
         emit EquipmentConfigSet(equipmentId, slot, speedBonus, attackBonus, defenseBonus, maxHpBonus, rangeBonus);
+    }
+
+    function _requireUint64(uint256 value) internal pure {
+        if (!(value <= type(uint64).max)) revert ValueOutOfRange();
+    }
+
+    function _requireUint32(uint256 value) internal pure {
+        if (!(value <= type(uint32).max)) revert ValueOutOfRange();
+    }
+
+    function _requireInt32(int256 value) internal pure {
+        if (!(value >= type(int32).min && value <= type(int32).max)) revert ValueOutOfRange();
     }
 }

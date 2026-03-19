@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import "./Errors.sol";
+
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract AgentboxConfig is Ownable {
@@ -27,6 +29,7 @@ contract AgentboxConfig is Ownable {
     constructor() Ownable(msg.sender) {}
 
     function setMapDimensions(uint256 width, uint256 height) external onlyOwner {
+        if (!(width > 0 && height > 0)) revert InvalidMapDimensions();
         mapWidth = width;
         mapHeight = height;
         _emitGlobalConfigUpdated();

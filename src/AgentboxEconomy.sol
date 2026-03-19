@@ -84,7 +84,7 @@ contract AgentboxEconomy is ERC20, VRFConsumerBaseV2Plus {
             delete pendingMintRequests[requestId];
 
             if (mintsCount >= 160000) {
-                return; // Max supply reached (160,000 mints * 1000 tokens = 160,000,000 tokens)
+                return; // Max configured drop count reached.
             }
 
             uint256 mapWidth = config.mapWidth();
@@ -92,7 +92,7 @@ contract AgentboxEconomy is ERC20, VRFConsumerBaseV2Plus {
 
             uint256 landId = randomWords[0] % (mapWidth * mapHeight);
 
-            uint256 currentMintAmount = 1000 * 10**decimals();
+            uint256 currentMintAmount = config.mintAmount();
 
             groundTokens[landId] += currentMintAmount;
             mintsCount++;
@@ -164,11 +164,8 @@ contract AgentboxEconomy is ERC20, VRFConsumerBaseV2Plus {
             if (len > 0 && block.number >= _unreliableBalances[toAccount][len - 1].obtainedBlock && block.number - _unreliableBalances[toAccount][len - 1].obtainedBlock <= 50) {
                 _unreliableBalances[toAccount][len - 1].amount += total;
             } else {
-                if (len >= 50) {
-                    _unreliableBalances[toAccount][len - 1].amount += total;
-                } else {
-                    _unreliableBalances[toAccount].push(UnreliableBalance({amount: total, obtainedBlock: block.number}));
-                }
+                if (!(len < 50)) revert PleaseStabilizeBalanceFirst();
+                _unreliableBalances[toAccount].push(UnreliableBalance({amount: total, obtainedBlock: block.number}));
             }
             
             _isBypassingReliableCheck = true;

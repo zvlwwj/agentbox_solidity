@@ -19,7 +19,7 @@ contract UpgradeActionFacetScript is Script {
         AgentboxDiamond.FacetCut[] memory cuts = new AgentboxDiamond.FacetCut[](1);
 
         bytes4[] memory actionSelectors = new bytes4[](4);
-        actionSelectors[0] = ActionFacet.move.selector;
+        actionSelectors[0] = ActionFacet.moveTo.selector;
         actionSelectors[1] = ActionFacet.startTeleport.selector;
         actionSelectors[2] = ActionFacet.finishTeleport.selector;
         actionSelectors[3] = ActionFacet.attack.selector;

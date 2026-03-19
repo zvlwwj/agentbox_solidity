@@ -804,6 +804,11 @@
             "internalType": "uint64"
           },
           {
+            "name": "gatheringResourceType",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
             "name": "gatheringAmount",
             "type": "uint64",
             "internalType": "uint64"
@@ -1080,7 +1085,7 @@
   },
   {
     "type": "function",
-    "name": "move",
+    "name": "moveTo",
     "inputs": [
       {
         "name": "roleWallet",
@@ -1088,14 +1093,14 @@
         "internalType": "address"
       },
       {
-        "name": "dx",
-        "type": "int256",
-        "internalType": "int256"
+        "name": "targetX",
+        "type": "uint256",
+        "internalType": "uint256"
       },
       {
-        "name": "dy",
-        "type": "int256",
-        "internalType": "int256"
+        "name": "targetY",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [],

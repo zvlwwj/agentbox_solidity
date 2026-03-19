@@ -97,7 +97,7 @@ contract AgentboxCoreTest is Test {
         cuts[0] = AgentboxDiamond.FacetCut({facetAddress: address(adminFacet), action: AgentboxDiamond.FacetCutAction.Add, functionSelectors: adminSelectors});
 
         bytes4[] memory actionSelectors = new bytes4[](4);
-        actionSelectors[0] = ActionFacet.move.selector;
+        actionSelectors[0] = ActionFacet.moveTo.selector;
         actionSelectors[1] = ActionFacet.startTeleport.selector;
         actionSelectors[2] = ActionFacet.finishTeleport.selector;
         actionSelectors[3] = ActionFacet.attack.selector;
@@ -113,13 +113,14 @@ contract AgentboxCoreTest is Test {
         gatherCraftSelectors[6] = GatherCraftFacet.unequip.selector;
         cuts[2] = AgentboxDiamond.FacetCut({facetAddress: address(gatherCraftFacet), action: AgentboxDiamond.FacetCutAction.Add, functionSelectors: gatherCraftSelectors});
 
-        bytes4[] memory learnSelectors = new bytes4[](6);
+        bytes4[] memory learnSelectors = new bytes4[](7);
         learnSelectors[0] = LearnFacet.startLearning.selector;
         learnSelectors[1] = LearnFacet.requestLearningFromPlayer.selector;
         learnSelectors[2] = LearnFacet.acceptTeaching.selector;
         learnSelectors[3] = LearnFacet.cancelLearning.selector;
-        learnSelectors[4] = LearnFacet.finishLearning.selector;
-        learnSelectors[5] = IAgentboxCore.processNPCRefresh.selector;
+        learnSelectors[4] = LearnFacet.cancelTeaching.selector;
+        learnSelectors[5] = LearnFacet.finishLearning.selector;
+        learnSelectors[6] = IAgentboxCore.processNPCRefresh.selector;
         cuts[3] = AgentboxDiamond.FacetCut({facetAddress: address(learnFacet), action: AgentboxDiamond.FacetCutAction.Add, functionSelectors: learnSelectors});
 
         bytes4[] memory mapSelectors = new bytes4[](4);
@@ -289,7 +290,7 @@ contract AgentboxCoreTest is Test {
         emit RoleMoved(walletAddr, expectedX, startY);
 
         vm.prank(player1);
-        core.move(walletAddr, 1, 0);
+        core.moveTo(walletAddr, expectedX, startY);
 
         (, uint256 endX, uint256 endY) = core.getEntityPosition(walletAddr);
         assertEq(endX, expectedX, "X should increment by 1 with wraparound");
@@ -332,5 +333,292 @@ contract AgentboxCoreTest is Test {
         land.safeTransferFrom(wallet1, wallet2, landId);
 
         assertEq(land.ownerOf(landId), wallet2, "Land should transfer when wallets are co-located");
+    }
+
+    function test_CancelTeachingAwardsSkillWhenLearningDurationMet() public {
+        config.setMapDimensions(100, 100);
+        core.setSkillBlocks(1, 2);
+
+        vm.startPrank(player1);
+        uint256 teacherRoleId = roleToken.mint();
+        address teacherWallet = roleToken.wallets(teacherRoleId);
+        core.registerCharacter{value: 0.01 ether}(teacherRoleId);
+        vm.stopPrank();
+
+        vm.startPrank(player2);
+        uint256 studentRoleId = roleToken.mint();
+        address studentWallet = roleToken.wallets(studentRoleId);
+        core.registerCharacter{value: 0.01 ether}(studentRoleId);
+        vm.stopPrank();
+
+        vrfMock.fulfillRandomWords(1, address(randomizer));
+        vrfMock.fulfillRandomWords(2, address(randomizer));
+
+        (, uint256 teacherX, uint256 teacherY) = core.getEntityPosition(teacherWallet);
+
+        core.setNPC(1, teacherX, teacherY, 1);
+
+        vm.prank(player1);
+        core.startLearning(teacherWallet, 1);
+
+        vm.roll(block.number + 2);
+
+        vm.prank(player1);
+        core.finishLearning(teacherWallet);
+
+        vm.startPrank(player2);
+        core.startTeleport(studentWallet, teacherX, teacherY);
+        vm.stopPrank();
+
+        vm.roll(block.number + 100);
+
+        vm.prank(player2);
+        core.finishTeleport(studentWallet);
+
+        vm.prank(player2);
+        core.requestLearningFromPlayer(studentWallet, teacherWallet, 1);
+
+        vm.prank(player1);
+        core.acceptTeaching(teacherWallet, studentWallet);
+
+        vm.roll(block.number + 4);
+
+        vm.prank(player1);
+        core.cancelTeaching(teacherWallet);
+
+        assertTrue(core.getRoleSkill(studentWallet, 1), "student should learn the skill");
+        assertEq(core.getRoleSnapshot(studentWallet).state, uint8(0), "student should be idle");
+        assertEq(core.getRoleSnapshot(teacherWallet).state, uint8(0), "teacher should be idle");
+    }
+
+    function test_DiamondCutRejectsDuplicateSelectorAdds() public {
+        AgentboxDiamond diamond = new AgentboxDiamond();
+        ActionFacet firstFacet = new ActionFacet();
+        ActionFacet secondFacet = new ActionFacet();
+
+        AgentboxDiamond.FacetCut[] memory initialCut = new AgentboxDiamond.FacetCut[](1);
+        bytes4[] memory firstSelectors = new bytes4[](1);
+        firstSelectors[0] = ActionFacet.moveTo.selector;
+        initialCut[0] = AgentboxDiamond.FacetCut({
+            facetAddress: address(firstFacet),
+            action: AgentboxDiamond.FacetCutAction.Add,
+            functionSelectors: firstSelectors
+        });
+        diamond.diamondCut(initialCut);
+
+        AgentboxDiamond.FacetCut[] memory duplicateCut = new AgentboxDiamond.FacetCut[](1);
+        bytes4[] memory duplicateSelectors = new bytes4[](1);
+        duplicateSelectors[0] = ActionFacet.moveTo.selector;
+        duplicateCut[0] = AgentboxDiamond.FacetCut({
+            facetAddress: address(secondFacet),
+            action: AgentboxDiamond.FacetCutAction.Add,
+            functionSelectors: duplicateSelectors
+        });
+
+        vm.expectRevert(bytes("Selector already exists"));
+        diamond.diamondCut(duplicateCut);
+    }
+
+    function test_GatheringMintsSnapshottedResourceTypeWhenPointIsReconfigured() public {
+        config.setMapDimensions(100, 100);
+        core.setSkillBlocks(1, 1);
+
+        vm.startPrank(player1);
+        uint256 roleId = roleToken.mint();
+        address walletAddr = roleToken.wallets(roleId);
+        core.registerCharacter{value: 0.01 ether}(roleId);
+        vm.stopPrank();
+
+        vrfMock.fulfillRandomWords(1, address(randomizer));
+
+        (, uint256 x, uint256 y) = core.getEntityPosition(walletAddr);
+
+        core.setNPC(1, x, y, 1);
+
+        vm.prank(player1);
+        core.startLearning(walletAddr, 1);
+
+        vm.roll(block.number + 1);
+
+        vm.prank(player1);
+        core.finishLearning(walletAddr);
+
+        core.setResourcePoint(x, y, 1, 10);
+
+        vm.prank(player1);
+        core.startGather(walletAddr, 2);
+
+        core.setResourcePoint(x, y, 2, 10);
+
+        vm.roll(block.number + 4);
+
+        vm.prank(player1);
+        core.finishGather(walletAddr);
+
+        assertEq(resource.balanceOf(walletAddr, 1), 2, "gather should mint the original resource type");
+        assertEq(resource.balanceOf(walletAddr, 2), 0, "reconfigured resource type should not be minted");
+
+        IAgentboxCore.RoleActionSnapshot memory action = core.getRoleActionSnapshot(walletAddr);
+        assertEq(action.gatheringTargetLandId, y * config.mapWidth() + x, "read snapshot should expose the raw land id");
+        assertEq(action.gatheringResourceType, 1, "read snapshot should expose the snapshotted resource type");
+    }
+
+    function test_CancelTeachingBeforeLearningDurationMetDoesNotAwardSkill() public {
+        config.setMapDimensions(100, 100);
+        core.setSkillBlocks(1, 2);
+
+        vm.startPrank(player1);
+        uint256 teacherRoleId = roleToken.mint();
+        address teacherWallet = roleToken.wallets(teacherRoleId);
+        core.registerCharacter{value: 0.01 ether}(teacherRoleId);
+        vm.stopPrank();
+
+        vm.startPrank(player2);
+        uint256 studentRoleId = roleToken.mint();
+        address studentWallet = roleToken.wallets(studentRoleId);
+        core.registerCharacter{value: 0.01 ether}(studentRoleId);
+        vm.stopPrank();
+
+        vrfMock.fulfillRandomWords(1, address(randomizer));
+        vrfMock.fulfillRandomWords(2, address(randomizer));
+
+        (, uint256 teacherX, uint256 teacherY) = core.getEntityPosition(teacherWallet);
+
+        core.setNPC(1, teacherX, teacherY, 1);
+
+        vm.prank(player1);
+        core.startLearning(teacherWallet, 1);
+
+        vm.roll(block.number + 2);
+
+        vm.prank(player1);
+        core.finishLearning(teacherWallet);
+
+        vm.startPrank(player2);
+        core.startTeleport(studentWallet, teacherX, teacherY);
+        vm.stopPrank();
+
+        vm.roll(block.number + 100);
+
+        vm.prank(player2);
+        core.finishTeleport(studentWallet);
+
+        vm.prank(player2);
+        core.requestLearningFromPlayer(studentWallet, teacherWallet, 1);
+
+        vm.prank(player1);
+        core.acceptTeaching(teacherWallet, studentWallet);
+
+        vm.roll(block.number + 1);
+
+        vm.prank(player1);
+        core.cancelTeaching(teacherWallet);
+
+        assertFalse(core.getRoleSkill(studentWallet, 1), "student should not learn the skill");
+        assertEq(core.getRoleSnapshot(studentWallet).state, uint8(0), "student should be idle");
+        assertEq(core.getRoleSnapshot(teacherWallet).state, uint8(0), "teacher should be idle");
+    }
+
+    function test_RetryingSpawnRequestDoesNotLetStaleCallbackRespawnRoleZero() public {
+        vm.startPrank(player1);
+        uint256 roleId0 = roleToken.mint();
+        address wallet0 = roleToken.wallets(roleId0);
+        core.registerCharacter{value: 0.01 ether}(roleId0);
+        vm.stopPrank();
+
+        vrfMock.fulfillRandomWords(1, address(randomizer));
+        (, uint256 role0XBefore, uint256 role0YBefore) = core.getEntityPosition(wallet0);
+
+        vm.startPrank(player2);
+        uint256 roleId1 = roleToken.mint();
+        address wallet1 = roleToken.wallets(roleId1);
+        core.registerCharacter{value: 0.01 ether}(roleId1);
+        vm.stopPrank();
+
+        vm.roll(block.number + 100);
+        uint256 retriedRequestId = randomizer.retryRequest(2);
+        assertEq(retriedRequestId, 3, "retry should create the next request id");
+
+        // Old request 2 fulfills late. This must be ignored rather than defaulting to Respawn(roleId=0).
+        vrfMock.fulfillRandomWords(2, address(randomizer));
+
+        (, uint256 role0XAfterStale, uint256 role0YAfterStale) = core.getEntityPosition(wallet0);
+        assertEq(role0XAfterStale, role0XBefore, "stale callback should not move role 0");
+        assertEq(role0YAfterStale, role0YBefore, "stale callback should not move role 0");
+
+        (bool role1ValidBeforeRetryFulfill,,) = core.getEntityPosition(wallet1);
+        assertFalse(role1ValidBeforeRetryFulfill, "role 1 should still be pending until the retried request fulfills");
+
+        vrfMock.fulfillRandomWords(retriedRequestId, address(randomizer));
+
+        (bool role1ValidAfterRetryFulfill,,) = core.getEntityPosition(wallet1);
+        assertTrue(role1ValidAfterRetryFulfill, "role 1 should spawn from the retried request");
+    }
+
+    function test_SetMapDimensionsRejectsZeroValues() public {
+        vm.expectRevert(InvalidMapDimensions.selector);
+        config.setMapDimensions(0, 100);
+
+        vm.expectRevert(InvalidMapDimensions.selector);
+        config.setMapDimensions(100, 0);
+    }
+
+    function test_SetResourcePointRejectsOutOfBoundsCoordinates() public {
+        uint256 mapWidth = config.mapWidth();
+        uint256 mapHeight = config.mapHeight();
+
+        vm.expectRevert(TargetOutOfBounds.selector);
+        core.setResourcePoint(mapWidth, 0, 1, 10);
+
+        vm.expectRevert(TargetOutOfBounds.selector);
+        core.setResourcePoint(0, mapHeight, 1, 10);
+    }
+
+    function test_SetNPCRejectsOutOfBoundsCoordinates() public {
+        uint256 mapWidth = config.mapWidth();
+        uint256 mapHeight = config.mapHeight();
+
+        vm.expectRevert(TargetOutOfBounds.selector);
+        core.setNPC(1, mapWidth, 0, 1);
+
+        vm.expectRevert(TargetOutOfBounds.selector);
+        core.setNPC(1, 0, mapHeight, 1);
+    }
+
+    function test_AdminSettersRejectValuesThatOverflowStorageTypes() public {
+        vm.expectRevert(ValueOutOfRange.selector);
+        core.setResourcePoint(0, 0, uint256(type(uint64).max) + 1, 10);
+
+        vm.expectRevert(ValueOutOfRange.selector);
+        core.setResourcePoint(0, 0, 1, uint256(type(uint64).max) + 1);
+
+        vm.expectRevert(ValueOutOfRange.selector);
+        core.setNPC(1, 0, 0, uint256(type(uint32).max) + 1);
+
+        vm.expectRevert(ValueOutOfRange.selector);
+        core.setRecipe(1, new uint256[](0), new uint256[](0), 1, uint256(type(uint64).max) + 1, 1001);
+
+        vm.expectRevert(ValueOutOfRange.selector);
+        core.setEquipmentConfig(1001, 1, int256(type(int32).max) + 1, 0, 0, 0, 0);
+    }
+
+    function test_TriggerMintUsesConfiguredMintAmount() public {
+        config.setMapDimensions(10, 10);
+        uint256 mintAmount = 77 * 10 ** 18;
+        config.setMintAmount(mintAmount);
+
+        vm.roll(block.number + config.mintIntervalBlocks());
+        economy.triggerMint();
+        vrfMock.fulfillRandomWords(1, address(economy));
+
+        uint256 totalGroundTokens = 0;
+        for (uint256 landId = 0; landId < config.mapWidth() * config.mapHeight(); landId++) {
+            uint256 amount = economy.groundTokens(landId);
+            if (amount > 0) {
+                totalGroundTokens += amount;
+            }
+        }
+
+        assertEq(totalGroundTokens, mintAmount, "ground drop should use config.mintAmount");
     }
 }

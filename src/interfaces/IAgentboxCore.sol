@@ -62,6 +62,7 @@ interface IAgentboxCore {
         uint64 gatheringStartBlock;
         uint64 gatheringRequiredBlocks;
         uint64 gatheringTargetLandId;
+        uint32 gatheringResourceType;
         uint64 gatheringAmount;
     }
 
@@ -145,7 +146,7 @@ interface IAgentboxCore {
         view
         returns (bool canFinish, uint8 state, uint256 finishBlock);
     
-    function move(address roleWallet, int256 dx, int256 dy) external;
+    function moveTo(address roleWallet, uint256 targetX, uint256 targetY) external;
     function startTeleport(address roleWallet, uint256 targetX, uint256 targetY) external;
     function finishTeleport(address roleWallet) external;
     function attack(address roleWallet, address targetWallet) external;

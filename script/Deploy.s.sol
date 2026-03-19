@@ -67,7 +67,7 @@ contract DeployScript is Script {
         cuts[0] = AgentboxDiamond.FacetCut({facetAddress: address(adminFacet), action: AgentboxDiamond.FacetCutAction.Add, functionSelectors: adminSelectors});
 
         bytes4[] memory actionSelectors = new bytes4[](4);
-        actionSelectors[0] = ActionFacet.move.selector;
+        actionSelectors[0] = ActionFacet.moveTo.selector;
         actionSelectors[1] = ActionFacet.startTeleport.selector;
         actionSelectors[2] = ActionFacet.finishTeleport.selector;
         actionSelectors[3] = ActionFacet.attack.selector;
@@ -83,13 +83,14 @@ contract DeployScript is Script {
         gatherCraftSelectors[6] = GatherCraftFacet.unequip.selector;
         cuts[2] = AgentboxDiamond.FacetCut({facetAddress: address(gatherCraftFacet), action: AgentboxDiamond.FacetCutAction.Add, functionSelectors: gatherCraftSelectors});
 
-        bytes4[] memory learnSelectors = new bytes4[](6);
+        bytes4[] memory learnSelectors = new bytes4[](7);
         learnSelectors[0] = LearnFacet.startLearning.selector;
         learnSelectors[1] = LearnFacet.requestLearningFromPlayer.selector;
         learnSelectors[2] = LearnFacet.acceptTeaching.selector;
         learnSelectors[3] = LearnFacet.cancelLearning.selector;
-        learnSelectors[4] = LearnFacet.finishLearning.selector;
-        learnSelectors[5] = LearnFacet.processNPCRefresh.selector;
+        learnSelectors[4] = LearnFacet.cancelTeaching.selector;
+        learnSelectors[5] = LearnFacet.finishLearning.selector;
+        learnSelectors[6] = LearnFacet.processNPCRefresh.selector;
         cuts[3] = AgentboxDiamond.FacetCut({facetAddress: address(learnFacet), action: AgentboxDiamond.FacetCutAction.Add, functionSelectors: learnSelectors});
 
         bytes4[] memory mapSelectors = new bytes4[](4);
