@@ -153,8 +153,8 @@ contract AgentboxCoreTest is Test {
         cuts[5] = AgentboxDiamond.FacetCut({facetAddress: address(readFacet), action: AgentboxDiamond.FacetCutAction.Add, functionSelectors: readSelectors});
 
         bytes4[] memory roleSelectors = new bytes4[](4);
-        roleSelectors[0] = bytes4(keccak256("registerCharacter(uint256)"));
-        roleSelectors[1] = bytes4(keccak256("registerCharacter(uint256,string,uint8)"));
+        roleSelectors[0] = bytes4(keccak256("createCharacter()"));
+        roleSelectors[1] = bytes4(keccak256("createCharacter(string,uint8)"));
         roleSelectors[2] = IAgentboxCore.processSpawn.selector;
         roleSelectors[3] = IAgentboxCore.processRespawn.selector;
         cuts[6] = AgentboxDiamond.FacetCut({facetAddress: address(roleFacet), action: AgentboxDiamond.FacetCutAction.Add, functionSelectors: roleSelectors});
@@ -183,26 +183,16 @@ contract AgentboxCoreTest is Test {
         land.setGameCore(address(core));
         randomizer.setGameCore(address(core));
         economy.setGameCore(address(core));
+        roleToken.setGameCore(address(core));
     }
 
     function test_RegisterCharacter() public {
-        vm.startPrank(player1);
-
-        uint256 roleId = roleToken.mint();
-        address walletAddr = roleToken.wallets(roleId);
+        (uint256 roleId, address walletAddr) = _createCharacter(player1);
         assertTrue(walletAddr != address(0), "Wallet not created");
 
-        // Register
-        core.registerCharacter{value: 0.01 ether}(roleId);
-
-        // Check state
         (bool isValid, uint256 x, uint256 y) = core.getEntityPosition(walletAddr);
-        // Initially should be (0,0) and state PendingSpawn (since VRF not fulfilled yet)
-        assertFalse(isValid, "Should not be fully valid until VRF resolves"); 
+        assertFalse(isValid, "Should not be fully valid until VRF resolves");
 
-        vm.stopPrank();
-
-        // Fulfill VRF for spawn
         vrfMock.fulfillRandomWords(1, address(randomizer));
 
         (isValid, x, y) = core.getEntityPosition(walletAddr);
@@ -210,15 +200,7 @@ contract AgentboxCoreTest is Test {
     }
 
     function test_RegisterCharacterWithProfile() public {
-        vm.startPrank(player1);
-
-        uint256 roleId = roleToken.mint();
-        address walletAddr = roleToken.wallets(roleId);
-
-        vm.expectEmit(true, false, false, true);
-        emit CharacterProfileSet(walletAddr, "alpha123", 1);
-        core.registerCharacter{value: 0.01 ether}(roleId, "alpha123", 1);
-        vm.stopPrank();
+        (, address walletAddr) = _createCharacterWithProfile(player1, "alpha123", 1);
 
         IAgentboxCore.RoleProfileSnapshot memory profile = core.getRoleProfile(walletAddr);
         assertEq(profile.nickname, "alpha123", "Nickname should be stored");
@@ -227,32 +209,21 @@ contract AgentboxCoreTest is Test {
     }
 
     function test_RegisterCharacterRejectsDuplicateNickname() public {
-        vm.startPrank(player1);
-        uint256 roleId1 = roleToken.mint();
-        core.registerCharacter{value: 0.01 ether}(roleId1, "sharedname", 1);
-        vm.stopPrank();
+        _createCharacterWithProfile(player1, "sharedname", 1);
 
-        vm.startPrank(player2);
-        uint256 roleId2 = roleToken.mint();
         vm.expectRevert(NicknameAlreadyTaken.selector);
-        core.registerCharacter{value: 0.01 ether}(roleId2, "sharedname", 2);
-        vm.stopPrank();
+        vm.prank(player2);
+        core.createCharacter{value: 0.01 ether}("sharedname", 2);
     }
 
     function test_RegisterCharacterRejectsInvalidNicknameLength() public {
-        vm.startPrank(player1);
-        uint256 roleId = roleToken.mint();
         vm.expectRevert(InvalidNicknameLength.selector);
-        core.registerCharacter{value: 0.01 ether}(roleId, "ab", 1);
-        vm.stopPrank();
+        vm.prank(player1);
+        core.createCharacter{value: 0.01 ether}("ab", 1);
     }
 
     function test_Movement() public {
-        vm.startPrank(player1);
-        uint256 roleId = roleToken.mint();
-        address walletAddr = roleToken.wallets(roleId);
-        core.registerCharacter{value: 0.01 ether}(roleId);
-        vm.stopPrank();
+        (, address walletAddr) = _createCharacter(player1);
 
         vrfMock.fulfillRandomWords(1, address(randomizer));
 
@@ -275,11 +246,7 @@ contract AgentboxCoreTest is Test {
     }
 
     function test_ImmediateMoveEmitsRoleMoved() public {
-        vm.startPrank(player1);
-        uint256 roleId = roleToken.mint();
-        address walletAddr = roleToken.wallets(roleId);
-        core.registerCharacter{value: 0.01 ether}(roleId);
-        vm.stopPrank();
+        (, address walletAddr) = _createCharacter(player1);
 
         vrfMock.fulfillRandomWords(1, address(randomizer));
 
@@ -298,17 +265,8 @@ contract AgentboxCoreTest is Test {
     }
 
     function test_LandIsERC721Tradable() public {
-        vm.startPrank(player1);
-        uint256 roleId1 = roleToken.mint();
-        address wallet1 = roleToken.wallets(roleId1);
-        core.registerCharacter{value: 0.01 ether}(roleId1);
-        vm.stopPrank();
-
-        vm.startPrank(player2);
-        uint256 roleId2 = roleToken.mint();
-        address wallet2 = roleToken.wallets(roleId2);
-        core.registerCharacter{value: 0.01 ether}(roleId2);
-        vm.stopPrank();
+        (, address wallet1) = _createCharacter(player1);
+        (, address wallet2) = _createCharacter(player2);
 
         vrfMock.fulfillRandomWords(1, address(randomizer));
         vrfMock.fulfillRandomWords(2, address(randomizer));
@@ -339,17 +297,8 @@ contract AgentboxCoreTest is Test {
         config.setMapDimensions(100, 100);
         core.setSkillBlocks(1, 2);
 
-        vm.startPrank(player1);
-        uint256 teacherRoleId = roleToken.mint();
-        address teacherWallet = roleToken.wallets(teacherRoleId);
-        core.registerCharacter{value: 0.01 ether}(teacherRoleId);
-        vm.stopPrank();
-
-        vm.startPrank(player2);
-        uint256 studentRoleId = roleToken.mint();
-        address studentWallet = roleToken.wallets(studentRoleId);
-        core.registerCharacter{value: 0.01 ether}(studentRoleId);
-        vm.stopPrank();
+        (, address teacherWallet) = _createCharacter(player1);
+        (, address studentWallet) = _createCharacter(player2);
 
         vrfMock.fulfillRandomWords(1, address(randomizer));
         vrfMock.fulfillRandomWords(2, address(randomizer));
@@ -423,11 +372,7 @@ contract AgentboxCoreTest is Test {
         config.setMapDimensions(100, 100);
         core.setSkillBlocks(1, 1);
 
-        vm.startPrank(player1);
-        uint256 roleId = roleToken.mint();
-        address walletAddr = roleToken.wallets(roleId);
-        core.registerCharacter{value: 0.01 ether}(roleId);
-        vm.stopPrank();
+        (, address walletAddr) = _createCharacter(player1);
 
         vrfMock.fulfillRandomWords(1, address(randomizer));
 
@@ -467,17 +412,8 @@ contract AgentboxCoreTest is Test {
         config.setMapDimensions(100, 100);
         core.setSkillBlocks(1, 2);
 
-        vm.startPrank(player1);
-        uint256 teacherRoleId = roleToken.mint();
-        address teacherWallet = roleToken.wallets(teacherRoleId);
-        core.registerCharacter{value: 0.01 ether}(teacherRoleId);
-        vm.stopPrank();
-
-        vm.startPrank(player2);
-        uint256 studentRoleId = roleToken.mint();
-        address studentWallet = roleToken.wallets(studentRoleId);
-        core.registerCharacter{value: 0.01 ether}(studentRoleId);
-        vm.stopPrank();
+        (, address teacherWallet) = _createCharacter(player1);
+        (, address studentWallet) = _createCharacter(player2);
 
         vrfMock.fulfillRandomWords(1, address(randomizer));
         vrfMock.fulfillRandomWords(2, address(randomizer));
@@ -520,20 +456,12 @@ contract AgentboxCoreTest is Test {
     }
 
     function test_RetryingSpawnRequestDoesNotLetStaleCallbackRespawnRoleZero() public {
-        vm.startPrank(player1);
-        uint256 roleId0 = roleToken.mint();
-        address wallet0 = roleToken.wallets(roleId0);
-        core.registerCharacter{value: 0.01 ether}(roleId0);
-        vm.stopPrank();
+        (, address wallet0) = _createCharacter(player1);
 
         vrfMock.fulfillRandomWords(1, address(randomizer));
         (, uint256 role0XBefore, uint256 role0YBefore) = core.getEntityPosition(wallet0);
 
-        vm.startPrank(player2);
-        uint256 roleId1 = roleToken.mint();
-        address wallet1 = roleToken.wallets(roleId1);
-        core.registerCharacter{value: 0.01 ether}(roleId1);
-        vm.stopPrank();
+        (, address wallet1) = _createCharacter(player2);
 
         vm.roll(block.number + 100);
         uint256 retriedRequestId = randomizer.retryRequest(2);
@@ -620,5 +548,35 @@ contract AgentboxCoreTest is Test {
         }
 
         assertEq(totalGroundTokens, mintAmount, "ground drop should use config.mintAmount");
+    }
+
+    function test_TriggerMintRespectsConfiguredMaxMintCount() public {
+        config.setMaxMintCount(1);
+
+        vm.roll(block.number + config.mintIntervalBlocks());
+        economy.triggerMint();
+        vrfMock.fulfillRandomWords(1, address(economy));
+        assertEq(economy.mintsCount(), 1, "first mint should succeed");
+
+        vm.roll(block.number + config.mintIntervalBlocks());
+        vm.expectRevert(MaxMintCountReached.selector);
+        economy.triggerMint();
+    }
+
+    function _createCharacter(address player) internal returns (uint256 roleId, address walletAddr) {
+        roleId = roleToken.totalMinted();
+        vm.prank(player);
+        core.createCharacter{value: 0.01 ether}();
+        walletAddr = roleToken.wallets(roleId);
+    }
+
+    function _createCharacterWithProfile(address player, string memory nickname, uint8 gender)
+        internal
+        returns (uint256 roleId, address walletAddr)
+    {
+        roleId = roleToken.totalMinted();
+        vm.prank(player);
+        core.createCharacter{value: 0.01 ether}(nickname, gender);
+        walletAddr = roleToken.wallets(roleId);
     }
 }

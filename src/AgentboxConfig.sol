@@ -11,9 +11,9 @@ contract AgentboxConfig is Ownable {
         uint256 mapHeight,
         uint256 mintIntervalBlocks,
         uint256 mintAmount,
+        uint256 maxMintCount,
         uint256 stabilizationBlocks,
         uint256 craftDurationBlocks,
-        uint256 halvingIntervalBlocks,
         uint256 landPrice
     );
 
@@ -21,9 +21,9 @@ contract AgentboxConfig is Ownable {
     uint256 public mapHeight = 10000;
     uint256 public mintIntervalBlocks = 100;
     uint256 public mintAmount = 50 * 10 ** 18;
+    uint256 public maxMintCount = 160000;
     uint256 public stabilizationBlocks = 4000;
     uint256 public craftDurationBlocks = 3600;
-    uint256 public halvingIntervalBlocks = 6048000;
     uint256 public landPrice = 100 * 10 ** 18;
 
     constructor() Ownable(msg.sender) {}
@@ -45,6 +45,11 @@ contract AgentboxConfig is Ownable {
         _emitGlobalConfigUpdated();
     }
 
+    function setMaxMintCount(uint256 count) external onlyOwner {
+        maxMintCount = count;
+        _emitGlobalConfigUpdated();
+    }
+
     function setStabilizationBlocks(uint256 blocks) external onlyOwner {
         stabilizationBlocks = blocks;
         _emitGlobalConfigUpdated();
@@ -52,11 +57,6 @@ contract AgentboxConfig is Ownable {
 
     function setCraftDurationBlocks(uint256 blocks) external onlyOwner {
         craftDurationBlocks = blocks;
-        _emitGlobalConfigUpdated();
-    }
-
-    function setHalvingIntervalBlocks(uint256 blocks) external onlyOwner {
-        halvingIntervalBlocks = blocks;
         _emitGlobalConfigUpdated();
     }
 
@@ -71,9 +71,9 @@ contract AgentboxConfig is Ownable {
             mapHeight,
             mintIntervalBlocks,
             mintAmount,
+            maxMintCount,
             stabilizationBlocks,
             craftDurationBlocks,
-            halvingIntervalBlocks,
             landPrice
         );
     }

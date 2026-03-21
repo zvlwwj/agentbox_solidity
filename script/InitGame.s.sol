@@ -70,17 +70,17 @@ contract InitGameScript is Script {
         uint256 mapHeight = vm.envOr("GAME_MAP_HEIGHT", config.mapHeight());
         uint256 mintInterval = vm.envOr("GAME_MINT_INTERVAL_BLOCKS", config.mintIntervalBlocks());
         uint256 mintAmount = vm.envOr("GAME_MINT_AMOUNT", config.mintAmount());
+        uint256 maxMintCount = vm.envOr("GAME_MAX_MINT_COUNT", config.maxMintCount());
         uint256 stabilizationBlocks = vm.envOr("GAME_STABILIZATION_BLOCKS", config.stabilizationBlocks());
         uint256 craftDurationBlocks = vm.envOr("GAME_CRAFT_DURATION_BLOCKS", config.craftDurationBlocks());
-        uint256 halvingIntervalBlocks = vm.envOr("GAME_HALVING_INTERVAL_BLOCKS", config.halvingIntervalBlocks());
         uint256 landPrice = vm.envOr("GAME_LAND_PRICE", config.landPrice());
 
         config.setMapDimensions(mapWidth, mapHeight);
         config.setMintIntervalBlocks(mintInterval);
         config.setMintAmount(mintAmount);
+        config.setMaxMintCount(maxMintCount);
         config.setStabilizationBlocks(stabilizationBlocks);
         config.setCraftDurationBlocks(craftDurationBlocks);
-        config.setHalvingIntervalBlocks(halvingIntervalBlocks);
         config.setLandPrice(landPrice);
     }
 

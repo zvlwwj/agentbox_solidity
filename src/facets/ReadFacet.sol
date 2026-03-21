@@ -21,9 +21,9 @@ contract ReadFacet is AgentboxBase {
         uint256 mapHeight;
         uint256 mintIntervalBlocks;
         uint256 mintAmount;
+        uint256 maxMintCount;
         uint256 stabilizationBlocks;
         uint256 craftDurationBlocks;
-        uint256 halvingIntervalBlocks;
         uint256 landPrice;
     }
 
@@ -129,9 +129,9 @@ contract ReadFacet is AgentboxBase {
             mapHeight: config.mapHeight(),
             mintIntervalBlocks: config.mintIntervalBlocks(),
             mintAmount: config.mintAmount(),
+            maxMintCount: config.maxMintCount(),
             stabilizationBlocks: config.stabilizationBlocks(),
             craftDurationBlocks: config.craftDurationBlocks(),
-            halvingIntervalBlocks: config.halvingIntervalBlocks(),
             landPrice: config.landPrice()
         });
     }

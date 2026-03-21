@@ -80,3 +80,5 @@ error InvalidNicknameLength();
 error NicknameAlreadyTaken();
 error InvalidMapDimensions();
 error ValueOutOfRange();
+error NoRegistrableRoleFound();
+error MaxMintCountReached();

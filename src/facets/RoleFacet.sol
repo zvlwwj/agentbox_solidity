@@ -11,26 +11,28 @@ contract RoleFacet is AgentboxBase {
     uint256 private constant MIN_NICKNAME_LENGTH = 3;
     uint256 private constant MAX_NICKNAME_LENGTH = 24;
 
-    function registerCharacter(uint256 roleId) external payable {
-        _registerCharacter(roleId, "", 0, false);
+    function createCharacter() external payable {
+        _createCharacter("", 0, false);
     }
 
-    function registerCharacter(uint256 roleId, string calldata nickname, uint8 gender) external payable {
-        _registerCharacter(roleId, nickname, gender, true);
+    function createCharacter(string calldata nickname, uint8 gender) external payable {
+        _createCharacter(nickname, gender, true);
     }
 
-    function _registerCharacter(uint256 roleId, string memory nickname, uint8 gender, bool withProfile) internal {
+    function _createCharacter(string memory nickname, uint8 gender, bool withProfile) internal {
         if (!(msg.value == 0.01 ether)) revert Requires001EthToRegister();
 
         AgentboxStorage.GameState storage state = AgentboxStorage.getStorage();
         AgentboxRole roleToken = AgentboxRole(state.roleContract);
-        if (!(roleToken.ownerOf(roleId) == msg.sender)) revert NotOwner();
+        uint256 roleId = roleToken.mintTo(msg.sender);
 
         address roleWallet = roleToken.wallets(roleId);
         if (!(roleWallet != address(0))) revert WalletNotDeployed();
 
         AgentboxStorage.RoleData storage role = state.roles[roleWallet];
-        if (!(role.attributes.maxHp == 0 && role.state != AgentboxStorage.RoleState.PendingSpawn)) revert AlreadyRegisteredOrPending();
+        if (!(role.attributes.maxHp == 0 && role.state != AgentboxStorage.RoleState.PendingSpawn)) {
+            revert AlreadyRegisteredOrPending();
+        }
 
         if (withProfile) {
             _setRoleProfile(state, roleWallet, role, nickname, gender);

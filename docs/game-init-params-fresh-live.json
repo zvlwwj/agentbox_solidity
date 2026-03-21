@@ -4,9 +4,9 @@
     "mapHeight": 10000,
     "mintIntervalBlocks": 100,
     "mintAmount": 50000000000000000000,
+    "maxMintCount": 160000,
     "stabilizationBlocks": 4000,
     "craftDurationBlocks": 3600,
-    "halvingIntervalBlocks": 6048000,
     "landPrice": 100000000000000000000
   },
   "resourcePoints": [],

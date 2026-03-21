@@ -11,9 +11,9 @@ contract InitGameFromTableScript is Script {
         uint256 mapHeight;
         uint256 mintIntervalBlocks;
         uint256 mintAmount;
+        uint256 maxMintCount;
         uint256 stabilizationBlocks;
         uint256 craftDurationBlocks;
-        uint256 halvingIntervalBlocks;
         uint256 landPrice;
     }
 
@@ -63,12 +63,11 @@ contract InitGameFromTableScript is Script {
 
         string memory json = vm.readFile(paramsFile);
         GlobalConfig memory globalConfig = _parseGlobalConfig(json);
-        ResourcePointConfig[] memory resourcePoints =
-            abi.decode(vm.parseJson(json, ".resourcePoints"), (ResourcePointConfig[]));
-        SkillConfig[] memory skills = abi.decode(vm.parseJson(json, ".skills"), (SkillConfig[]));
-        NPCConfig[] memory npcs = abi.decode(vm.parseJson(json, ".npcs"), (NPCConfig[]));
+        ResourcePointConfig[] memory resourcePoints = _parseResourcePoints(json);
+        SkillConfig[] memory skills = _parseSkills(json);
+        NPCConfig[] memory npcs = _parseNpcs(json);
         RecipeConfig[] memory recipes = _parseRecipes(json);
-        EquipmentConfig[] memory equipments = abi.decode(vm.parseJson(json, ".equipments"), (EquipmentConfig[]));
+        EquipmentConfig[] memory equipments = _parseEquipments(json);
 
         IAgentboxCore core = IAgentboxCore(coreAddress);
         AgentboxConfig config = AgentboxConfig(configAddress);
@@ -92,9 +91,9 @@ contract InitGameFromTableScript is Script {
             mapHeight: vm.parseJsonUint(json, ".globalConfig.mapHeight"),
             mintIntervalBlocks: vm.parseJsonUint(json, ".globalConfig.mintIntervalBlocks"),
             mintAmount: vm.parseJsonUint(json, ".globalConfig.mintAmount"),
+            maxMintCount: vm.parseJsonUint(json, ".globalConfig.maxMintCount"),
             stabilizationBlocks: vm.parseJsonUint(json, ".globalConfig.stabilizationBlocks"),
             craftDurationBlocks: vm.parseJsonUint(json, ".globalConfig.craftDurationBlocks"),
-            halvingIntervalBlocks: vm.parseJsonUint(json, ".globalConfig.halvingIntervalBlocks"),
             landPrice: vm.parseJsonUint(json, ".globalConfig.landPrice")
         });
     }
@@ -116,13 +115,74 @@ contract InitGameFromTableScript is Script {
         }
     }
 
+    function _parseResourcePoints(string memory json) internal pure returns (ResourcePointConfig[] memory resourcePoints) {
+        string[] memory keys = vm.parseJsonKeys(json, ".resourcePoints");
+        resourcePoints = new ResourcePointConfig[](keys.length);
+
+        for (uint256 i = 0; i < keys.length; i++) {
+            string memory base = string.concat(".resourcePoints[", vm.toString(i), "]");
+            resourcePoints[i] = ResourcePointConfig({
+                x: vm.parseJsonUint(json, string.concat(base, ".x")),
+                y: vm.parseJsonUint(json, string.concat(base, ".y")),
+                resourceType: vm.parseJsonUint(json, string.concat(base, ".resourceType")),
+                initialStock: vm.parseJsonUint(json, string.concat(base, ".initialStock"))
+            });
+        }
+    }
+
+    function _parseSkills(string memory json) internal pure returns (SkillConfig[] memory skills) {
+        string[] memory keys = vm.parseJsonKeys(json, ".skills");
+        skills = new SkillConfig[](keys.length);
+
+        for (uint256 i = 0; i < keys.length; i++) {
+            string memory base = string.concat(".skills[", vm.toString(i), "]");
+            skills[i] = SkillConfig({
+                skillId: vm.parseJsonUint(json, string.concat(base, ".skillId")),
+                requiredBlocks: vm.parseJsonUint(json, string.concat(base, ".requiredBlocks"))
+            });
+        }
+    }
+
+    function _parseNpcs(string memory json) internal pure returns (NPCConfig[] memory npcs) {
+        string[] memory keys = vm.parseJsonKeys(json, ".npcs");
+        npcs = new NPCConfig[](keys.length);
+
+        for (uint256 i = 0; i < keys.length; i++) {
+            string memory base = string.concat(".npcs[", vm.toString(i), "]");
+            npcs[i] = NPCConfig({
+                npcId: vm.parseJsonUint(json, string.concat(base, ".npcId")),
+                x: vm.parseJsonUint(json, string.concat(base, ".x")),
+                y: vm.parseJsonUint(json, string.concat(base, ".y")),
+                skillId: vm.parseJsonUint(json, string.concat(base, ".skillId"))
+            });
+        }
+    }
+
+    function _parseEquipments(string memory json) internal pure returns (EquipmentConfig[] memory equipments) {
+        string[] memory keys = vm.parseJsonKeys(json, ".equipments");
+        equipments = new EquipmentConfig[](keys.length);
+
+        for (uint256 i = 0; i < keys.length; i++) {
+            string memory base = string.concat(".equipments[", vm.toString(i), "]");
+            equipments[i] = EquipmentConfig({
+                equipmentId: vm.parseJsonUint(json, string.concat(base, ".equipmentId")),
+                slot: vm.parseJsonUint(json, string.concat(base, ".slot")),
+                speedBonus: vm.parseJsonInt(json, string.concat(base, ".speedBonus")),
+                attackBonus: vm.parseJsonInt(json, string.concat(base, ".attackBonus")),
+                defenseBonus: vm.parseJsonInt(json, string.concat(base, ".defenseBonus")),
+                maxHpBonus: vm.parseJsonInt(json, string.concat(base, ".maxHpBonus")),
+                rangeBonus: vm.parseJsonInt(json, string.concat(base, ".rangeBonus"))
+            });
+        }
+    }
+
     function _initGlobalConfig(AgentboxConfig config, GlobalConfig memory gc) internal {
         config.setMapDimensions(gc.mapWidth, gc.mapHeight);
         config.setMintIntervalBlocks(gc.mintIntervalBlocks);
         config.setMintAmount(gc.mintAmount);
+        config.setMaxMintCount(gc.maxMintCount);
         config.setStabilizationBlocks(gc.stabilizationBlocks);
         config.setCraftDurationBlocks(gc.craftDurationBlocks);
-        config.setHalvingIntervalBlocks(gc.halvingIntervalBlocks);
         config.setLandPrice(gc.landPrice);
     }
 

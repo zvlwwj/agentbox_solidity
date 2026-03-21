@@ -18,9 +18,9 @@ contract GetGameConfigScript is Script {
         console.log("mapHeight:", config.mapHeight());
         console.log("mintIntervalBlocks:", config.mintIntervalBlocks());
         console.log("mintAmount:", config.mintAmount());
+        console.log("maxMintCount:", config.maxMintCount());
         console.log("stabilizationBlocks:", config.stabilizationBlocks());
         console.log("craftDurationBlocks:", config.craftDurationBlocks());
-        console.log("halvingIntervalBlocks:", config.halvingIntervalBlocks());
         console.log("landPrice:", config.landPrice());
         console.log("===================");
     }

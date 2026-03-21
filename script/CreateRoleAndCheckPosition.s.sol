@@ -11,16 +11,16 @@ contract CreateRoleAndCheckPositionScript is Script {
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-        address roleAddress = _resolveAddress("ROLE_ADDRESS", ".contracts.Role_NFT");
         address coreAddress = _resolveAddress("CORE_ADDRESS", ".contracts.Core_Diamond");
+        address roleAddress = _resolveAddress("ROLE_ADDRESS", ".contracts.Role_NFT");
 
         AgentboxRole role = AgentboxRole(roleAddress);
         IAgentboxCore core = IAgentboxCore(coreAddress);
 
         vm.startBroadcast(deployerPrivateKey);
-        uint256 roleId = role.mint();
+        uint256 roleId = role.totalMinted();
+        core.createCharacter{value: 0.01 ether}();
         address roleWallet = role.wallets(roleId);
-        core.registerCharacter{value: 0.01 ether}(roleId);
         vm.stopBroadcast();
 
         (bool isValid, uint256 x, uint256 y) = core.getEntityPosition(roleWallet);

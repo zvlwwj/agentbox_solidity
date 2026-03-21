@@ -123,8 +123,8 @@ contract DeployScript is Script {
         cuts[5] = AgentboxDiamond.FacetCut({facetAddress: address(readFacet), action: AgentboxDiamond.FacetCutAction.Add, functionSelectors: readSelectors});
 
         bytes4[] memory roleSelectors = new bytes4[](4);
-        roleSelectors[0] = bytes4(keccak256("registerCharacter(uint256)"));
-        roleSelectors[1] = bytes4(keccak256("registerCharacter(uint256,string,uint8)"));
+        roleSelectors[0] = bytes4(keccak256("createCharacter()"));
+        roleSelectors[1] = bytes4(keccak256("createCharacter(string,uint8)"));
         roleSelectors[2] = RoleFacet.processSpawn.selector;
         roleSelectors[3] = RoleFacet.processRespawn.selector;
         cuts[6] = AgentboxDiamond.FacetCut({facetAddress: address(roleFacet), action: AgentboxDiamond.FacetCutAction.Add, functionSelectors: roleSelectors});
@@ -153,6 +153,7 @@ contract DeployScript is Script {
         land.setGameCore(address(core));
         randomizer.setGameCore(address(core));
         economy.setGameCore(address(core));
+        role.setGameCore(address(core));
 
         vm.stopBroadcast();
         

@@ -63,6 +63,7 @@ contract AgentboxEconomy is ERC20, VRFConsumerBaseV2Plus {
     }
 
     function triggerMint() external {
+        if (!(mintsCount < config.maxMintCount())) revert MaxMintCountReached();
         if (!(block.number >= lastMintBlock + config.mintIntervalBlocks())) revert TooEarly();
         lastMintBlock = block.number;
 
@@ -83,7 +84,7 @@ contract AgentboxEconomy is ERC20, VRFConsumerBaseV2Plus {
         if (pendingMintRequests[requestId]) {
             delete pendingMintRequests[requestId];
 
-            if (mintsCount >= 160000) {
+            if (mintsCount >= config.maxMintCount()) {
                 return; // Max configured drop count reached.
             }
 

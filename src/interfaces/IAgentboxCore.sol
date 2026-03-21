@@ -16,9 +16,9 @@ interface IAgentboxCore {
         uint256 mapHeight;
         uint256 mintIntervalBlocks;
         uint256 mintAmount;
+        uint256 maxMintCount;
         uint256 stabilizationBlocks;
         uint256 craftDurationBlocks;
-        uint256 halvingIntervalBlocks;
         uint256 landPrice;
     }
 
@@ -113,8 +113,8 @@ interface IAgentboxCore {
         address _landContract
     ) external;
 
-    function registerCharacter(uint256 roleId) external payable;
-    function registerCharacter(uint256 roleId, string calldata nickname, uint8 gender) external payable;
+    function createCharacter() external payable;
+    function createCharacter(string calldata nickname, uint8 gender) external payable;
     function processSpawn(uint256 roleId, uint256 randomWord) external;
     function getEntityPosition(address entity) external view returns (bool isValid, uint256 x, uint256 y);
     function getCoreContracts() external view returns (CoreContracts memory snapshot);

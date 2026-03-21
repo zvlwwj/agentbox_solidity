@@ -79,8 +79,8 @@ contract UpgradeCoreToLandScript is Script {
         });
 
         bytes4[] memory roleReplaceSelectors = new bytes4[](4);
-        roleReplaceSelectors[0] = bytes4(keccak256("registerCharacter(uint256)"));
-        roleReplaceSelectors[1] = bytes4(keccak256("registerCharacter(uint256,string,uint8)"));
+        roleReplaceSelectors[0] = bytes4(keccak256("createCharacter()"));
+        roleReplaceSelectors[1] = bytes4(keccak256("createCharacter(string,uint8)"));
         roleReplaceSelectors[2] = RoleFacet.processSpawn.selector;
         roleReplaceSelectors[3] = RoleFacet.processRespawn.selector;
         cuts[4] = AgentboxDiamond.FacetCut({

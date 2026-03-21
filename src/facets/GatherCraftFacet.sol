@@ -31,7 +31,7 @@ contract GatherCraftFacet is AgentboxBase {
         (uint256 landId, AgentboxStorage.ResourcePoint storage rp) = _getGatherableResourcePoint(state, role);
         if (!(rp.stock >= amount)) revert NotEnoughResourceStock();
 
-        uint256 blocksPerResource = 2; // Fixed blocks per resource
+        uint256 blocksPerResource = 1; // Fixed blocks per resource
         uint256 requiredBlocks = amount * blocksPerResource;
 
         rp.stock -= uint64(amount);
